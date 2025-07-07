@@ -23,3 +23,6 @@ Mudanças de performance, que não mudam as funcionalidades
 
 ## revert🔄
 Revertendo commit anterior
+
+## merge ⤴️
+Realizando merge entre branches
