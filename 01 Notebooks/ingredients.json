@@ -1,4 +1,5 @@
 {
+  "nCdProduto": 1,
   "lIngredientes": [
     { "nCdIngrediente": 1, "nQuantidade": 450 },
     { "nCdIngrediente": 2, "nQuantidade": 150 }
