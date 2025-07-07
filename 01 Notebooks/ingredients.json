@@ -1,0 +1,7 @@
+{
+  "lIngredientes": [
+    { "nCdIngrediente": 1, "nQuantidade": 450 },
+    { "nCdIngrediente": 2, "nQuantidade": 150 }
+  ],
+  "nPorcao": 50
+}
