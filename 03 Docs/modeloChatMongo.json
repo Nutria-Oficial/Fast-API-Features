@@ -1,0 +1,15 @@
+[{
+    "_id":"Id único do chat para o mongo",
+    "nCdUsuario":"Código do usuário",
+    "iChat":"Indice do chat, o usuário pode ter vários chats",
+    "lUser":"Array contendo todas as mensagens que o usuário mandou",
+    "lBot":"Array contendo todas as mensagens que o bot mandou"
+},
+
+{
+    "_id":1,
+    "nCdUsuario":1,
+    "iChat":1,
+    "lUser":["Qual o principal nutriente que mais se deve ter cuidado para criar um alimento saudavel?"],
+    "lBot":["Para criar um alimento saudável, é crucial ter atenção ao teor de sódio. O consumo excessivo de sódio está associado a hipertensão arterial, um importante fator de risco para doenças cardiovasculares. Portanto, reduzir a quantidade de sódio em alimentos processados e incentivar o uso moderado de sal no preparo de refeições são passos essenciais para promover uma dieta mais saudável."]
+}]
