@@ -1,0 +1,19 @@
+[{
+    "_id":"Id único do produto no mongo",
+    "cNmProduto":"Nome do produto",
+    "dCriacao":"Data que o produto foi criado",
+    "nCdUsuarioCriacao":"Usuário que criou o produto",
+    "dUltimaAlteracao":"Data da última alteração do produto",
+    "nCdUsuarioUltimaAlteracao":"Último usuário que alterou o produto"
+},
+
+{
+    "_id":1,
+    "cNmProduto":"Bolo de cenoura",
+    "dCriacao":"DATA DE AGORA",
+    "nCdUsuarioCriacao":1,
+    "dUltimaAlteracao":"DATA DE AGORA",
+    "nCdUsuarioUltimaAlteracao":1
+}
+
+]
