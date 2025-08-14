@@ -4,10 +4,18 @@ import pandas as pd
 import json
 from pymongo import MongoClient
 from urllib.parse import quote_plus
+import valkey
+from dotenv import load_dotenv
 
-# Conexão
-username = quote_plus("nutria_host")
-password = quote_plus("Nutria/010125") 
+__all__ = ["criar_tabela_nutricional"]
+
+load_dotenv() # Obtendo as variáveis seguras
+
+# Conexões
+
+# MongoDB
+username = quote_plus(os.getenv("MONGO_USER"))
+password = quote_plus(os.getenv("MONGO_PWD")) 
 
 uri = f"mongodb+srv://{username}:{password}@nutriamdb.zb8v6ic.mongodb.net/?retryWrites=true&w=majority"
 
@@ -15,6 +23,12 @@ conn = MongoClient(uri)
 db = conn["NutriaMDB"]
 coll_ingrediente = db["ingrediente"]
 coll_tabela = db["tabela"]
+
+
+# Redis
+valkey_uri = os.getenv("REDIS_URI")
+redis = valkey.from_url(valkey_uri)
+prefixo_requisicao_user = "requisicao_user:"
 
 # Constantes
 nome_ptbr = {
@@ -96,19 +110,23 @@ vd_referencia = {
 
 # Funções ---------------------------------
 
-def criar_tabela_nutricional(ingredientes:list[dict], porcao:float) -> pd.DataFrame:
+def __gerar_tabela_nutricional(ingredientes:list[dict], porcao:float) -> pd.DataFrame:
     """
     ## Recebe
     ### Lista de ingredientes em formato ``code`` e ``amount``
     Uma lista de dicinários com esse formato, onde code é o código do ingrediente especificado na tabela principal, e amount é a quantidade desse ingrediente por porção
 
-    ## Retorna
+    ## Retorna uma lista com um:
     ### ``DataFrame`` com as informações da tabela nutricional
     Uma tabela com as colunas:
     - ``Nutriente``: Nome da nutriente (seja ele caloria ou vitamina) em PT-BR
     - ``100g``: Quantidade daquela nutriente em 100g
     - ``200g``: Quantidade daquela nutriente em 200g
     - ``VD`` : Porcentagem daquela nutriente no contexto geral da tabela
+
+    ### O `total` que contém a quantidade total de volume/peso que a tabela contém
+    
+    ### E os `ingredientes` que contém uma lista de dicionarios com os ingredientes usados na tabela e suas quantidades
     """
     
     # Informações da tabela
@@ -154,8 +172,8 @@ def criar_tabela_nutricional(ingredientes:list[dict], porcao:float) -> pd.DataFr
 
     # Percorrendo os ingredientes para adicionar as informações
     for ingrediente in ingredientes:
-        total_amount += float(ingrediente["amount"])
-        ingrediente_code = int(ingrediente["code"].replace(".",""))
+        total_amount += float(ingrediente["iQuantidade"])
+        ingrediente_code = int(ingrediente["nCdIngrediente"])
 
         row = coll_ingrediente.aggregate([{"$match":{"_id":ingrediente_code}},
                                          {"$project":{"_id":0, "cNmIngrediente":0, "cCategoria":0}}]).to_list()[0]
@@ -164,29 +182,79 @@ def criar_tabela_nutricional(ingredientes:list[dict], porcao:float) -> pd.DataFr
             table_info[key] += value
 
     nutrientes_info = {
-        "Nutriente":[nome_ptbr[key] for key in table_info.keys()], 
-        f"Total de {total_amount}g":[value for value in table_info.values()],
-        f"Porção de {porcao}g":[value/total_amount*porcao for value in table_info.values()],
-        "VD":[value/total_amount*porcao/vd_referencia[key]*100 if vd_referencia[key] != 0 else None for key, value in table_info.items()]
+        "cNutriente":[nome_ptbr[key] for key in table_info.keys()], 
+        "nTotal":[value for value in table_info.values()],
+        "nPorcao":[value/total_amount*porcao for value in table_info.values()],
+        "nVD":[value/total_amount*porcao/vd_referencia[key]*100 if vd_referencia[key] != 0 else None for key, value in table_info.items()]
         }
     
     df_final = pd.DataFrame(nutrientes_info)
 
-    return df_final
+    return df_final,total_amount
 
-def inserir_tabela_bd(nome_tabela:str, tabela:pd.DataFrame):
-    print(tabela.to_json())
+def __inserir_tabela_bd(cod_user:int, nome_tabela:str, total_tabela:float, porcao:float, ingredientes:list[dict], tabela:dict):
+
+    try:
+        aggregate = [{"$sort":{"_id":-1}},
+        {"$limit":1},
+        {"$project":{"_id":1}}]
+
+        next_id = coll_tabela.aggregate(aggregate).to_list()[0]["_id"]+1
+
+        cod_produto = float(redis.hget(prefixo_requisicao_user+str(cod_user), "cod_produto"))
+
+        tabela_banco = {
+        "_id":next_id,
+        "nCdProduto":cod_produto,
+        "cNmTabela":nome_tabela,
+        "nTotal":total_tabela,
+        "nPorcao":porcao,
+        "lIngredientes":ingredientes,
+        "lNutrientes":tabela["cNutriente"],
+        "lTotal":tabela["nTotal"],
+        "lPorcao":tabela["nPorcao"],
+        "lVd":tabela["nVD"]
+        }
+
+        coll_tabela.insert_one(tabela_banco)
+
+        print(f"A tabela {nome_tabela} foi inserida com sucesso")
+
+    except Exception as e:
+        print("Ocorreu um erro ao inserir no banco de dados")
+        print("Erro: \n"+str(e))
+
 
 # ----------------------------------------
-# Obtendo informações do JSON
+# Obtendo informações do Redis
 # ----------------------------------------
 
-with open("ingredients.json", "r+", encoding="utf-8") as arquivo_json:
-    ingredientes_dict = json.load(arquivo_json)
 
-porcao = float(ingredientes_dict["portion"])
-ingredientes_dict = ingredientes_dict["ingredients"]
+def criar_tabela_nutricional(cod_user:int):
+    try:
+        # Pegando parâmetros passados pelo Redis
+        nome_tabela = str(redis.hget(prefixo_requisicao_user+str(cod_user), "nome_tabela"))
+        nome_tabela = nome_tabela.removeprefix("b'").removesuffix("'")
+        print(nome_tabela)
 
-tabela = criar_tabela_nutricional(ingredientes_dict, porcao)
+        porcao = float(redis.hget(prefixo_requisicao_user+str(cod_user), "porcao_tabela"))
+        print(porcao)
 
-inserir_tabela_bd("tabela",tabela)
+        ingredientes_redis = redis.hget(prefixo_requisicao_user+str(cod_user), "ingredientes")
+
+        ingredientes = json.loads(ingredientes_redis.decode("utf-8"))
+
+
+        # Gerando a tabela nutricional
+        tabela, total_tabela = __gerar_tabela_nutricional(ingredientes, porcao)
+
+        tabela = tabela.to_dict('list')
+
+        # Inserindo ela no MongoDB
+        __inserir_tabela_bd(cod_user, nome_tabela, total_tabela, porcao, ingredientes, tabela)
+
+        print(f"Tabela nutricional do usuário {cod_user} foi inserida no MongoDB")
+
+    except Exception as e:
+        print(f"Ocorreu um erro ao tentar inserir a tabela nutricional do usuário {cod_user}")
+        print(f"Erro: {e}")
