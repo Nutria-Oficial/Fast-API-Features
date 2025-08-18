@@ -192,7 +192,7 @@ def __gerar_tabela_nutricional(ingredientes:list[dict], porcao:float) -> pd.Data
 
     return df_final,total_amount
 
-def __inserir_tabela_bd(cod_user:int, nome_tabela:str, total_tabela:float, porcao:float, ingredientes:list[dict], tabela:dict):
+def __inserir_tabela_bd(cod_user:int, nome_tabela:str, total_tabela:float, porcao:float, unidade_de_medida:str,ingredientes:list[dict], tabela:dict):
 
     try:
         aggregate = [{"$sort":{"_id":-1}},
@@ -209,6 +209,7 @@ def __inserir_tabela_bd(cod_user:int, nome_tabela:str, total_tabela:float, porca
         "cNmTabela":nome_tabela,
         "nTotal":total_tabela,
         "nPorcao":porcao,
+        "cUnidadeMedida":unidade_de_medida,
         "lIngredientes":ingredientes,
         "lNutrientes":tabela["cNutriente"],
         "lTotal":tabela["nTotal"],
@@ -235,14 +236,15 @@ def criar_tabela_nutricional(cod_user:int):
         # Pegando parâmetros passados pelo Redis
         nome_tabela = str(redis.hget(prefixo_requisicao_user+str(cod_user), "nome_tabela"))
         nome_tabela = nome_tabela.removeprefix("b'").removesuffix("'")
-        print(nome_tabela)
 
         porcao = float(redis.hget(prefixo_requisicao_user+str(cod_user), "porcao_tabela"))
-        print(porcao)
 
         ingredientes_redis = redis.hget(prefixo_requisicao_user+str(cod_user), "ingredientes")
 
         ingredientes = json.loads(ingredientes_redis.decode("utf-8"))
+
+        unidade_de_medida = str(redis.hget(prefixo_requisicao_user+str(cod_user), "unidade_medida"))
+        unidade_de_medida = unidade_de_medida.removeprefix("b'").removesuffix("'")
 
 
         # Gerando a tabela nutricional
@@ -251,7 +253,7 @@ def criar_tabela_nutricional(cod_user:int):
         tabela = tabela.to_dict('list')
 
         # Inserindo ela no MongoDB
-        __inserir_tabela_bd(cod_user, nome_tabela, total_tabela, porcao, ingredientes, tabela)
+        __inserir_tabela_bd(cod_user, nome_tabela, total_tabela, porcao, unidade_de_medida, ingredientes, tabela)
 
         print(f"Tabela nutricional do usuário {cod_user} foi inserida no MongoDB")
 
