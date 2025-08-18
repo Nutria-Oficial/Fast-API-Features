@@ -110,11 +110,14 @@ vd_referencia = {
 
 # Funções ---------------------------------
 
-def __gerar_tabela_nutricional(ingredientes:list[dict], porcao:float) -> pd.DataFrame:
+def __gerar_tabela_nutricional(ingredientes:list[dict], porcao:float):
     """
+    # Criador de tabela nutricional
+    Método privado responsável por criar a tabela nutricional com todos os nutrientes e seus valores já calculados
+
     ## Recebe
-    ### Lista de ingredientes em formato ``code`` e ``amount``
-    Uma lista de dicinários com esse formato, onde code é o código do ingrediente especificado na tabela principal, e amount é a quantidade desse ingrediente por porção
+    ### Lista de ingredientes em formato ``nCdIngrediente`` e ``iQuantidade``
+    Uma lista de dicinários com esse formato, onde nCdIngrediente é o código do ingrediente especificado na tabela principal, e iQuantidade é a quantidade desse ingrediente por porção
 
     ## Retorna uma lista com um:
     ### ``DataFrame`` com as informações da tabela nutricional
@@ -124,9 +127,7 @@ def __gerar_tabela_nutricional(ingredientes:list[dict], porcao:float) -> pd.Data
     - ``200g``: Quantidade daquela nutriente em 200g
     - ``VD`` : Porcentagem daquela nutriente no contexto geral da tabela
 
-    ### O `total` que contém a quantidade total de volume/peso que a tabela contém
-    
-    ### E os `ingredientes` que contém uma lista de dicionarios com os ingredientes usados na tabela e suas quantidades
+    ### E o `total` que contém a quantidade total de volume/peso que a tabela contém    
     """
     
     # Informações da tabela
@@ -193,7 +194,20 @@ def __gerar_tabela_nutricional(ingredientes:list[dict], porcao:float) -> pd.Data
     return df_final,total_amount
 
 def __inserir_tabela_bd(cod_user:int, nome_tabela:str, total_tabela:float, porcao:float, unidade_de_medida:str,ingredientes:list[dict], tabela:dict):
+    """
+    # MongoDB ``insert``
+     Método responsável por inserir a tabela nutricional no formato correto dentro do MongoDB
 
+    ## Parâmetros:
+    - ``cod_user``: Código do usuário que está inserindo a tabela
+    - ``nome_tabela``: Nome da tabela nutricional, para diferencia-la das demais
+    - ``total_tabela``: Total em volume/peso da tabela
+    - ``porcao``: Quantidade de volume/peso por porção
+    - ``unidade_de_medida``: Unidade de medida da tabela (g, ml, kg, etc)
+    - ``ingredientes``: Uma lista de dicionários contendo os ingredientes usados para criar a tabela, usado para criar a receita
+    - ``tabela``: A tabela nutricional contendo todos os nutrientes e seus valores
+    """
+    
     try:
         aggregate = [{"$sort":{"_id":-1}},
         {"$limit":1},
@@ -232,6 +246,10 @@ def __inserir_tabela_bd(cod_user:int, nome_tabela:str, total_tabela:float, porca
 
 
 def criar_tabela_nutricional(cod_user:int):
+    """
+    # TableCreator
+    Função que cria automaticamente a tabela nutricional que o usuário pediu, e já insere dentro do MongoDB, recebendo apenas o código do usuário, as demais informações são recebidas a partir do Redis.
+    """
     try:
         # Pegando parâmetros passados pelo Redis
         nome_tabela = str(redis.hget(prefixo_requisicao_user+str(cod_user), "nome_tabela"))
