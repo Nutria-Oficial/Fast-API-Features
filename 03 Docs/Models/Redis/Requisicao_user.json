@@ -1,0 +1,17 @@
+[{
+    "cod_produto":"Código do produto que a tabela vai ser anexada",
+    "nome_tabela":"Nome que a tabela irá receber, para diferencia-la das demais",
+    "porcao_tabela":"A quantidade de (unidade de medida) que possui em cada porção do produto",
+    "ingredientes":"JSON serializado possuindo todos ingredientes da tabela",
+    "unidade_medida":"Unidade de medida da tabela nutricional"
+}
+,
+
+
+
+{
+    "descricao": "Esse é o formato de dados que o ingrediente irá ser colocado dentro do redis"
+},
+[{"nCdIngrediente": 1, "iQuantidade": 100}, {"nCdIngrediente": 2, "iQuantidade": 300}],
+[{"nCdIngrediente": "Código do ingrediente no banco de dados", "iQuantidade": "Quantidade desse ingrediente na receita"}]
+]
