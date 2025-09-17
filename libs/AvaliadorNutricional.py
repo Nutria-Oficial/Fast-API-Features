@@ -1,3 +1,5 @@
+import pandas as pd
+
 def get_total_by_ingrediente(i:dict) -> float:
     # --------- Pontos negativos ---------
     pontos_negativos = 0
@@ -54,8 +56,50 @@ def get_total_by_ingrediente(i:dict) -> float:
 
     return score_final
 
+def pegar_ingredientes_formatados(tabela_mongo:dict) -> dict:
+    
+    tabela = tabela_mongo.copy()
 
-def classificar(ingrediente:dict):
+    model = {
+        "nCaloria":0, 
+        "nProteina":0, 
+        "nAcucar":0, 
+        "nFibra":0, 
+        "nGorduraSaturada":0, 
+        "nSodio":0
+    }
+
+    nutrientes_usados = ["Valor Calórico (kcal)", "Proteína (g)", "Açúcar Total (g)", "Fibra Alimentar (g)", "Gordura Saturada (g)", "Sódio (mg)"]
+
+    transform_colunas = {
+        "Valor Calórico (kcal)":"nCaloria",
+        "Proteína (g)":"nProteina", 
+        "Açúcar Total (g)":"nAcucar", 
+        "Fibra Alimentar (g)":"nFibra", 
+        "Gordura Saturada (g)":"nGorduraSaturada", 
+        "Sódio (mg)":"nSodio"
+    }
+
+    total = tabela.pop("nTotal")
+    valores_inuteis = tabela.pop("_id"), tabela.pop("nCdProduto"), tabela.pop("cNmTabela"), tabela.pop("nPorcao"), tabela.pop("cUnidadeMedida"), tabela.pop("lIngredientes")
+    
+
+    df = pd.DataFrame(tabela)
+
+    df = df[df["lNutrientes"].isin(nutrientes_usados)]
+
+    tabela = df.to_dict("split")["data"]
+
+    for i in tabela:
+        chave, valor = i[0], i[1]
+        valor = valor/total*100 # Deixando nos 100g
+        model[transform_colunas[chave]] = valor
+    
+    return model
+
+def classificar(tabela_nutricional:dict):
+
+    ingrediente = pegar_ingredientes_formatados(tabela_nutricional)
 
     score = get_total_by_ingrediente(ingrediente)
     
@@ -70,5 +114,5 @@ def classificar(ingrediente:dict):
     else:
         classificacao = "A"
 
-    return classificacao, score
+    return classificacao
 

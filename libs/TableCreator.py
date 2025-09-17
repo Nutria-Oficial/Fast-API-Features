@@ -6,6 +6,7 @@ from pymongo import MongoClient
 from urllib.parse import quote_plus
 import valkey
 from dotenv import load_dotenv
+from .AvaliadorNutricional import classificar
 
 __all__ = ["criar_tabela_nutricional"]
 
@@ -228,16 +229,18 @@ def __inserir_tabela_bd(cod_user:int, nome_tabela:str, total_tabela:float, porca
         "lNutrientes":tabela["cNutriente"],
         "lTotal":tabela["nTotal"],
         "lPorcao":tabela["nPorcao"],
-        "lVd":tabela["nVD"]
+        "lVd":tabela["nVD"],
         }
+
+        tabela_banco["cAvaliacao"] = classificar(tabela_banco)
 
         coll_tabela.insert_one(tabela_banco)
 
         print(f"A tabela {nome_tabela} foi inserida com sucesso")
 
     except Exception as e:
-        print("Ocorreu um erro ao inserir no banco de dados")
-        print("Erro: \n"+str(e))
+        excecao = "Ocorreu um erro ao inserir no banco de dados. Erro: \n"+str(e)
+        raise Exception(excecao)
 
 
 # ----------------------------------------
@@ -254,7 +257,7 @@ def criar_tabela_nutricional(cod_user:int):
         # Pegando parâmetros passados pelo Redis
         nome_tabela = str(redis.hget(prefixo_requisicao_user+str(cod_user), "nome_tabela"))
         nome_tabela = nome_tabela.removeprefix("b'").removesuffix("'")
-
+        
         porcao = float(redis.hget(prefixo_requisicao_user+str(cod_user), "porcao_tabela"))
 
         ingredientes_redis = redis.hget(prefixo_requisicao_user+str(cod_user), "ingredientes")
@@ -273,8 +276,13 @@ def criar_tabela_nutricional(cod_user:int):
         # Inserindo ela no MongoDB
         __inserir_tabela_bd(cod_user, nome_tabela, total_tabela, porcao, unidade_de_medida, ingredientes, tabela)
 
-        print(f"Tabela nutricional do usuário {cod_user} foi inserida no MongoDB")
+        retorno = f"Tabela nutricional do usuário {cod_user} foi inserida no MongoDB"
+
+        print(retorno)
+
+        return retorno
 
     except Exception as e:
-        print(f"Ocorreu um erro ao tentar inserir a tabela nutricional do usuário {cod_user}")
-        print(f"Erro: {e}")
+        retorno = f"Ocorreu um erro ao tentar inserir a tabela nutricional do usuário {cod_user} \n Erro: {e}"
+        print(retorno)
+        return retorno
