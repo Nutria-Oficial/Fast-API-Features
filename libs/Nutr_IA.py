@@ -11,6 +11,7 @@ from langchain.schema import HumanMessage, SystemMessage
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
 from urllib.parse import quote_plus
+from libs.Exception import Http_Exception
 
 load_dotenv() # Obtendo as variáveis seguras
 
@@ -74,7 +75,7 @@ def atualizar_chat(memoria:dict, ja_existe:bool):
             coll_chat.insert_one(memoria)
 
     except Exception as e:
-        raise Exception(f"Ocorreu um ERRO ao inserir a memória de código {memoria['_id']}: \n {str(e)}")
+        raise Http_Exception(500,f"Ocorreu um ERRO ao inserir a memória de código {memoria['_id']}: \n {str(e)}")
 
 
 def nutria_bot(nCdUsuario:int, iChat:int, pergunta:str) -> str:
@@ -203,6 +204,5 @@ def nutria_bot(nCdUsuario:int, iChat:int, pergunta:str) -> str:
     # Inserindo ou atualizando no banco
     atualizar_chat(memoria, ja_existe)
     
-
     # Resposta final
     return avaliacao
