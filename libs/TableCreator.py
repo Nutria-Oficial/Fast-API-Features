@@ -7,6 +7,8 @@ from urllib.parse import quote_plus
 import valkey
 from dotenv import load_dotenv
 from .AvaliadorNutricional import classificar
+from libs.Exception import Http_Exception
+
 
 __all__ = ["criar_tabela_nutricional"]
 
@@ -267,22 +269,23 @@ def criar_tabela_nutricional(cod_user:int):
         unidade_de_medida = str(redis.hget(prefixo_requisicao_user+str(cod_user), "unidade_medida"))
         unidade_de_medida = unidade_de_medida.removeprefix("b'").removesuffix("'")
 
-
-        # Gerando a tabela nutricional
-        tabela, total_tabela = __gerar_tabela_nutricional(ingredientes, porcao)
-
-        tabela = tabela.to_dict('list')
-
-        # Inserindo ela no MongoDB
-        __inserir_tabela_bd(cod_user, nome_tabela, total_tabela, porcao, unidade_de_medida, ingredientes, tabela)
-
-        retorno = f"Tabela nutricional do usuário {cod_user} foi inserida no MongoDB"
-
-        print(retorno)
-
-        return retorno
-
     except Exception as e:
-        retorno = f"Ocorreu um erro ao tentar inserir a tabela nutricional do usuário {cod_user} \n Erro: {e}"
+        retorno = f"Ocorreu um erro ao tentar pegar os parâmetros para inserir a tabela nutricional do usuário {cod_user} \n Erro: {e}"
         print(retorno)
-        return retorno
+        raise Http_Exception(400, retorno)
+    
+    # Gerando a tabela nutricional
+    tabela, total_tabela = __gerar_tabela_nutricional(ingredientes, porcao)
+
+    tabela = tabela.to_dict('list')
+
+    # Inserindo ela no MongoDB
+    __inserir_tabela_bd(cod_user, nome_tabela, total_tabela, porcao, unidade_de_medida, ingredientes, tabela)
+
+    retorno = f"Tabela nutricional do usuário {cod_user} foi inserida no MongoDB"
+
+    print(retorno)
+
+    return retorno
+
+    

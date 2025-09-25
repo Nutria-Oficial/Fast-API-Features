@@ -1,20 +1,33 @@
 from fastapi import FastAPI
 from libs.TableCreator import criar_tabela_nutricional
 from libs.Nutr_IA import nutria_bot
+from fastapi.responses import JSONResponse
+from libs.Exception import Http_Exception
 
 api = FastAPI()
 
 @api.get("/")
 async def index():
-    return{"message":"Bem-vindo ao FastTria! Para acessar a documentação da API entre no swagger no endpoint: /docs#/"}
+    return JSONResponse(content={"message":"Bem-vindo ao FastTria! Para acessar a documentação da API entre no swagger no endpoint: /docs#/"}, status_code=200)
 
 @api.post("/tablecreator/{cod_user}")
 async def create_table(cod_user:int):
-    retorno = criar_tabela_nutricional(cod_user)
-    return {"message":retorno}
+    try:
+        retorno = criar_tabela_nutricional(cod_user)
+        return JSONResponse(content={"message":retorno}, status_code=200)
+    except Http_Exception as http:
+        return JSONResponse(content={"message":http.mensagem}, status_code=http.codigo)
+    except Exception as e:
+        return JSONResponse(content={"message":e}, status_code=500)
+
 
 @api.post("/chatbot/")
 async def chat_NutrIA(body: dict):
-    pergunta = body["cPrompt"]
-    resposta = nutria_bot(body["nCdUser"], body["iChat"], pergunta)
-    return {"Pergunta": pergunta, "Resposta":resposta}
+    try:
+        pergunta = body["cPrompt"]
+        resposta = nutria_bot(body["nCdUser"], body["iChat"], pergunta)
+        return JSONResponse(content={"Pergunta": pergunta, "Resposta":resposta}, status_code=200)
+    except Http_Exception as http:
+        return JSONResponse(content={"message":http.mensagem}, status_code=http.codigo)
+    except Exception as e:
+        return JSONResponse(content={"message":e}, status_code=500)

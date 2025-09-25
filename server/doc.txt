@@ -1,0 +1,1 @@
+Para subir o servidor em container, basta pegar os comandos dos arquivos .bat e usar no terminal, no nível da Fast-Api
