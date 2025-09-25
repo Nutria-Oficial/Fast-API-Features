@@ -13,12 +13,11 @@ Repositório que reúne exemplos, configurações e libs auxiliares para projeto
 ├── docs/
 ├── libs/
 ├── notebooks/
-├── .env
+├── server/
+├── .gitignore
 ├── docker-compose.yml
 ├── main.py
-├── parar-servidor.bat
 ├── requirements.txt
-├── subir-servidor.bat
 ├── LICENSE
 └── README.md
 `
@@ -29,7 +28,7 @@ Repositório que reúne exemplos, configurações e libs auxiliares para projeto
 * *docs/* — documentação adicional, especificações, guias ou anotações para o projeto.
 * *libs/* — bibliotecas ou módulos auxiliares que complementam a FastAPI.
 * *notebooks/* — notebooks (por exemplo, Jupyter) para testes, análises ou demonstrações.
-* *.env* — variáveis de ambiente para configurar o projeto.
+* *server/* — arquivos .bat para iniciar e parar o servidor no Docker
 * *docker-compose.yml* — definição de serviços para orquestração com Docker.
 * *main.py* — ponto de entrada da aplicação FastAPI.
 * *parar-servidor.bat* / *subir-servidor.bat* — scripts em batch para iniciar ou parar o servidor (no Windows).
