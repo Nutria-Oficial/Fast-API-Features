@@ -5,11 +5,16 @@
     "nTotal": "Quantidade total da tabela (seja em grmas ou em mililitros)",
     "nPorcao": "Quantidade total por porção (seja em grmas ou em mililitros)",
     "lIngredientes": "Array que contém documentos contendo o código do nutriente e sua quantidade",
-    "lNutrientes": [],
-    "lTotal": [],
-    "lPorcao": [],
-    "lVd": [],
-    "cAvaliacao":"Avaliação da tabela nutricional, calculada automaticamente. Sua classificação pode ser (A, B, C, D, E)"
+    "lNutrientes": "Array que contém os nomes dos nutrientes da tabela",
+    "lTotal": "Array que contém os valores totais de cada um dos nutrientes do array lNutrientes",
+    "lPorcao": "Array que contém os valores de porção de cada um dos nutrientes do array lNutrientes",
+    "lVd": "Array que contém os valores do VD% (Valor diário) de cada um dos nutrientes do array lNutrientes",
+    "jAvaliacao":{
+      "cClassificacao":"Avaliação da tabela nutricional, calculada automaticamente. Sua classificação pode ser (A, B, C, D, E)",
+      "iScore":"Valor obtido na classificação do alimento segundo o Nutri-Score",
+      "cComentarios":"Texto criado automaticamente por IA que cita os pontos bons, ruins e recomendações do que deve ser melhorado da tabela nutricional"
+    }
+    
 },
 
 {
