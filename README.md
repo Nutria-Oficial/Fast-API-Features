@@ -23,7 +23,6 @@ Repositório que reúne exemplos, configurações e libs auxiliares para projeto
 `
 ```
 
-
 * *docker/* — arquivos relacionados à containerização (Docker).
 * *docs/* — documentação adicional, especificações, guias ou anotações para o projeto.
 * *libs/* — bibliotecas ou módulos auxiliares que complementam a FastAPI.
@@ -53,7 +52,6 @@ Repositório que reúne exemplos, configurações e libs auxiliares para projeto
    git clone https://github.com/Nutria-Oficial/Fast-API-Features.git
    cd Fast-API-Features
    ```
-   
 
 2. Configure o ambiente:
 
@@ -61,27 +59,25 @@ Repositório que reúne exemplos, configurações e libs auxiliares para projeto
    cp .env.example .env   # se houver exemplo
    ```
 
-3. Instale as dependências:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Rodar localmente:
+3. Rodar localmente:
 
    ```bash
    python -m venv venv
+
    .\venv\Scripts\activate
+
+   pip install -r requirements.txt
+
    uvicorn main:api --port 8000
    ```
 
-5. (Opcional) Usando Docker:
+4. (Opcional) Usando Docker:
 
    ```bash
    docker-compose up --build
    ```
 
-6. (Windows) Scripts para iniciar/parar servidor:
+5. (Windows) Scripts para iniciar/parar servidor:
 
    ```powershell
    .\subir-servidor.bat
@@ -128,9 +124,7 @@ Consulte o arquivo [LICENSE](LICENSE) para mais detalhes.
 
 Use o padrão abaixo para mensagens de commit:
 
-
 tipo(modulo): descrição da mudança
-
 
 ### Tipos comuns
 
@@ -153,5 +147,3 @@ tipo(modulo): descrição da mudança
 3. Crie uma branch (git checkout -b minha-feature)
 4. Faça commit seguindo o padrão acima
 5. Abra um pull request 🚀
-
----
