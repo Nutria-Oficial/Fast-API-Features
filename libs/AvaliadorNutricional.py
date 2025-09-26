@@ -114,5 +114,5 @@ def classificar(tabela_nutricional:dict):
     else:
         classificacao = "A"
 
-    return classificacao
+    return classificacao,score
 

@@ -6,7 +6,8 @@ from pymongo import MongoClient
 from urllib.parse import quote_plus
 import valkey
 from dotenv import load_dotenv
-from .AvaliadorNutricional import classificar
+from libs.AvaliadorNutricional import classificar
+from libs.DescreveAvaliacaoTabela import descrever_avaliacao
 from libs.Exception import Http_Exception
 
 
@@ -212,14 +213,17 @@ def __inserir_tabela_bd(cod_user:int, nome_tabela:str, total_tabela:float, porca
     """
     
     try:
+        # Adquirindo o próximo ID que vai ser inserido
         aggregate = [{"$sort":{"_id":-1}},
         {"$limit":1},
         {"$project":{"_id":1}}]
 
         next_id = coll_tabela.aggregate(aggregate).to_list()[0]["_id"]+1
 
+        # Pegando uma informação do Redis
         cod_produto = float(redis.hget(prefixo_requisicao_user+str(cod_user), "cod_produto"))
 
+        # Criação do objeto base que vai ser inserido
         tabela_banco = {
         "_id":next_id,
         "nCdProduto":cod_produto,
@@ -234,8 +238,19 @@ def __inserir_tabela_bd(cod_user:int, nome_tabela:str, total_tabela:float, porca
         "lVd":tabela["nVD"],
         }
 
-        tabela_banco["cAvaliacao"] = classificar(tabela_banco)
+        # Obtendo a classificação da tabela e seu score obtido pelo Nutri-Score
+        classificacao, score = classificar(tabela_banco)
 
+        tabela_banco["jAvaliacao"] = {
+            "cClassificacao":classificacao,
+            "iScore":score,
+            "cComentarios":""
+        }
+
+        # Pegando a descrição/comentários da avaliação da tabela, gerado por IA
+        tabela_banco["jAvaliacao"]["cComentarios"] = descrever_avaliacao(tabela_banco)
+
+        # Inserindo a tabela no banco
         coll_tabela.insert_one(tabela_banco)
 
         print(f"A tabela {nome_tabela} foi inserida com sucesso")
@@ -271,7 +286,6 @@ def criar_tabela_nutricional(cod_user:int):
 
     except Exception as e:
         retorno = f"Ocorreu um erro ao tentar pegar os parâmetros para inserir a tabela nutricional do usuário {cod_user} \n Erro: {e}"
-        print(retorno)
         raise Http_Exception(400, retorno)
     
     # Gerando a tabela nutricional
@@ -279,13 +293,14 @@ def criar_tabela_nutricional(cod_user:int):
 
     tabela = tabela.to_dict('list')
 
-    # Inserindo ela no MongoDB
-    __inserir_tabela_bd(cod_user, nome_tabela, total_tabela, porcao, unidade_de_medida, ingredientes, tabela)
+    try:
+        # Inserindo ela no MongoDB
+        __inserir_tabela_bd(cod_user, nome_tabela, total_tabela, porcao, unidade_de_medida, ingredientes, tabela)
 
-    retorno = f"Tabela nutricional do usuário {cod_user} foi inserida no MongoDB"
-
-    print(retorno)
-
-    return retorno
+        retorno = f"Tabela nutricional do usuário {cod_user} foi inserida no MongoDB"
+        return retorno
+    
+    except Exception as e:
+        raise Http_Exception(400, e)
 
     
