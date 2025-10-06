@@ -260,7 +260,19 @@ def table_insert(
         return {"status":"error", "mesage":ex}     
 
 
+# --------------------------- App -------------------------------
+@tool("search_fluxo")
+def search_fluxo():
+    try:
+        texto = ""
+        with(open("../docs/app/fluxo_nutria.txt", encoding="utf-8")) as fluxo:
+            texto = fluxo.read()
+        return {"status":"ok", "fluxo":texto}
+    except Exception as ex:
+        return {"status":"error", "error":ex}
+
 # ------------------ Variáveis importaveis ----------------------
 MEMORY = [get_history, set_history]
 FUNCTIONS = [get_datetime]
-TOOLS = [ingredient_find, table_find, table_insert]
+TOOLS_BD = [ingredient_find, table_find, table_insert]
+TOOLS_RAG = [search_fluxo]
