@@ -1,0 +1,1 @@
+O Nutria é um app que vai permitir que produtos em desenvolvimento sejam cadastrados por um engenheiro de alimentos, com com base em dados que o usuário fornecerá, o app vai conseguir calcular tabelas nutricionais, exportar tabelas, comparação de entre tabelas, e muito mais.
