@@ -1,12 +1,15 @@
 from typing import Optional # padrao do python
 from langchain.tools import tool
 from pydantic import BaseModel, Field
-from langchain.memory import ChatMessageHistory
-from libs.Exception import Http_Exception
-from libs.TableCreator import criar_tabela_nutricional_IA
-from libs.Connection import get_coll, COLLS
-import datetime
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain.schema import HumanMessage
+from libs.Utils.Exception import Http_Exception
+from libs.Utils.Connection import get_coll, COLLS
+from datetime import datetime
 from zoneinfo import ZoneInfo
+from pathlib import Path
+from sentence_transformers import SentenceTransformer
+import json
 
 
 # ============================ Memória =========================== 
@@ -40,7 +43,7 @@ def get_history(nCdUser:int, iChat:int = 1) -> ChatMessageHistory:
 
         # Caso possua memória
         if (len(result) > 0):
-            memoria = create_ChatMessageHistory(result[0])
+            memoria = create_ChatMessageHistory(result[0]["lMemoria"])
             return memoria
         
         # Caso não possua vai retornar apenas um objeto de memória novo
@@ -56,15 +59,26 @@ def set_history(nCdUsuario:int, history:ChatMessageHistory, iChat:int=1 ):
     cursor = get_coll(COLLS["memoria"])
 
     # Tornando a memória em objetos que poderão ser colocados dentro do banco
-    lMemoria = [msg.dict() for msg in history.messages]
+    lMemoria = [msg.model_dump() if not isinstance(msg, str) else HumanMessage(msg).model_dump() for msg in history.messages]
     lUser = []
     lBot = []
 
     for memo in lMemoria:
+        conteudo = str(memo["content"])
         if (memo["type"] == "human"):
-            lUser.append(str(memo["content"]))
+            # Regra para adicionar quando for apenas texto
+            if ((not conteudo.startswith("{\"routes\":}")) and (not "\"dominio\":" in conteudo)):
+                lUser.append(conteudo)
         elif (memo["type"] == "ai"):
-            lBot.append(str(memo["content"]))
+            # Regra para evitar as memórias das conversas entre os agentes
+            if (not "\"dominio\":" in conteudo and (not "\"resposta_small_talk\":null" in conteudo)):
+                # Verificando se é small talk ou orquestrador
+                if ("\"resposta_small_talk\":" in conteudo):
+                    resposta_json = json.loads(conteudo)
+                    lBot.append(resposta_json.get("resposta_small_talk", ""))
+                else:
+                    lBot.append(conteudo)
+                    
     
     # Verificando pré-existência da memória no banco
     memoria = cursor.find({"nCdUsuario":nCdUsuario, "iChat":iChat}).to_list()
@@ -82,7 +96,12 @@ def set_history(nCdUsuario:int, history:ChatMessageHistory, iChat:int=1 ):
         {"$limit":1},
         {"$project":{"_id":1}}]
 
-        next_id = next(cursor.aggregate(agg).to_list(), {"_id":0})["_id"]+1
+        result_biggest_id = cursor.aggregate(agg).to_list()
+
+        if (len(result_biggest_id) >= 1):
+            next_id = result_biggest_id[0]["_id"]+1
+        else:
+            next_id = 1
 
         # Criando objeto novo que vai ser inserido e inserindo ele dentro da collection
         memoria = {
@@ -103,7 +122,7 @@ def get_datetime(timezone:str = "America/Sao_Paulo"):
     Obtém a data atual de acordo com um timezone. Default = America/Sao_Paulo
     """
     TZ = ZoneInfo(timezone)
-    return datetime.now(TZ).date()
+    return datetime.now(TZ).date().isoformat()
 
 
 
@@ -114,13 +133,11 @@ def get_datetime(timezone:str = "America/Sao_Paulo"):
 # Consulta
 class IngredientsFindArgs(BaseModel):
     cNmIngrediente: Optional[str] = Field(default=None, description="Nome do ingrediente (PT-BR)")
-    cCategoria: Optional[str] = Field(default=None, description="Categoria do ingrediente (PT-BR)")
     iLimit: int = Field(default=20, description="Limite de dados que a consulta irá trazer, pode ser mais caso o usuário peça ingredientes sem os parâmetros acima. Por exemplo um ingrediente com maior quantidade de calorias registrado no banco.")
 
 @tool("ingredient_find", args_schema=IngredientsFindArgs)
 def ingredient_find(
     cNmIngrediente: Optional[str] = None,
-    cCategoria: Optional[str] = None,
     iLimit: int = 20
 ):
     """
@@ -131,15 +148,49 @@ def ingredient_find(
         cursor = get_coll(COLLS["ingrediente"])
 
         # Criando a agregação e filtros
-        agg = [{"$match": {"_id": {"$exists": True}}}]
+        agg = []
         if (cNmIngrediente):
-            agg[0]["$match"]["cNmIngrediente"] = cNmIngrediente
-        
-        if (cCategoria):
-            agg[0]["$match"]["cCategoria"] = cCategoria
+            model_embedding = SentenceTransformer("all-MiniLM-L6-v2")
+            query_emb = model_embedding.encode(cNmIngrediente).tolist()
+            agg.extend([{
+                    "$vectorSearch": {
+                        "index": "vector_index",
+                        "path": "cEmbedding",
+                        "queryVector": query_emb,
+                        "numCandidates": 50,
+                        "limit": 3
+                    }
+                },
+                {"$set": {"score": {"$meta": "vectorSearchScore"}}}])
 
         # Colocando o limit na consulta
         agg.append({"$limit":iLimit})
+
+        resultado = cursor.aggregate(agg).to_list()
+
+        return {"status":"ok", "result":resultado}
+
+    except Exception as ex:
+        return {"status":"error", "mesage":ex}
+
+# -------------------------- Produtos ----------------------------
+
+# Consulta
+@tool("product_find")
+def product_find(
+    cNmProduto: Optional[str] = None,
+):
+    """
+    Consulta os produtos dentro do MongoDB pelo nome
+    """
+    try:
+        # Obtendo cursor que interage com o banco de dados
+        cursor = get_coll(COLLS["produto"])
+
+        # Criando a agregação e filtros
+        agg = [{"$match": {"_id": {"$exists": True}}}]
+        if (cNmProduto):
+            agg[0]["$match"]["cNmIngrediente"] = cNmProduto
 
         resultado = cursor.aggregate(agg).to_list()
 
@@ -226,12 +277,31 @@ def table_insert(
     Tool que pega a receita de um alimento para gerar sua tabela nutricional
     """
     try:
+        # Importando a biblioteca apenas quando for criar uma tabela nutricional para aumentar a velocidade das outras respostas
+        from libs.TableCreator import criar_tabela_nutricional_IA
+
         # Obtendo cursor que interage com o banco de dados para pegar os códigos dos ingredientes
         cursor = get_coll(COLLS["ingrediente"])
 
+        model_embedding = SentenceTransformer("all-MiniLM-L6-v2")
+
         for i in lIngredientes:
             nome_ingrediente = i.pop("cNmIngrediente")
-            result = cursor.find_one({"cNmIngrediente":f"/{nome_ingrediente}/i"})
+            query_emb = model_embedding.encode(nome_ingrediente).tolist()
+            agg = [
+                {
+                    "$vectorSearch": {
+                        "index": "vector_index",
+                        "path": "cEmbedding",
+                        "queryVector": query_emb,
+                        "numCandidates": 50,
+                        "limit": 1
+                    }
+                },
+                {"$set": {"score": {"$meta": "vectorSearchScore"}}}
+            ]
+
+            result = cursor.aggregate(agg).to_list()[0]
 
             if (result):
                 i["nCdIngrediente"] = int(result["_id"])
@@ -243,7 +313,21 @@ def table_insert(
             # Mudando o cursor para conectar na collection de produtos e buscar o código do produto
             cursor = get_coll(COLLS["produto"])
 
-            result = cursor.find({"cNmProduto":f"/{cNmProduto}/i"})
+            query_emb = model_embedding.encode(cNmProduto).tolist()
+            agg = [
+                {
+                    "$vectorSearch": {
+                        "index": "vector_index",
+                        "path": "cEmbedding",
+                        "queryVector": query_emb,
+                        "numCandidates": 50,
+                        "limit": 1
+                    }
+                },
+                {"$set": {"score": {"$meta": "vectorSearchScore"}}}
+            ]
+
+            result = cursor.aggregate(agg).to_list()[0]
 
             if (result):
                 nCdProduto = int(result["_id"])
@@ -263,9 +347,17 @@ def table_insert(
 # --------------------------- App -------------------------------
 @tool("search_fluxo")
 def search_fluxo():
+    """
+    Tool responsável por obter os dados sobre o fluxo do app
+    """
     try:
         texto = ""
-        with(open("../docs/app/fluxo_nutria.txt", encoding="utf-8")) as fluxo:
+
+        # Buscando o caminho relacionado ao arquivo que contém o fluxo do app
+        caminho_fluxo = Path(__file__).resolve().parent.parent / "docs" / "app" / "fluxo_nutria.txt"
+        
+        # Abrindo o arquivo, pegando o conteúdo e retornando
+        with(open(caminho_fluxo, encoding="utf-8")) as fluxo:
             texto = fluxo.read()
         return {"status":"ok", "fluxo":texto}
     except Exception as ex:
@@ -274,5 +366,5 @@ def search_fluxo():
 # ------------------ Variáveis importaveis ----------------------
 MEMORY = [get_history, set_history]
 FUNCTIONS = [get_datetime]
-TOOLS_BD = [ingredient_find, table_find, table_insert]
+TOOLS_BD = [ingredient_find, product_find, table_find, table_insert]
 TOOLS_RAG = [search_fluxo]

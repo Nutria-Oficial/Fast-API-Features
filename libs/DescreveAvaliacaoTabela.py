@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 import os
 import google.generativeai as genai
-from libs.Exception import Http_Exception
+from libs.Utils.Exception import Http_Exception
 from pathlib import Path
 import json
 
