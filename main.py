@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from libs.TableCreator import criar_tabela_nutricional
-from libs.Nutr_IA import nutria_bot
-from libs.ProductEmbedding import criar_embedding
+from libs.TrIA import Tria
+from libs.AutomaticEmbedding import criar_embedding
 from libs.Utils.Exception import Http_Exception
 
 api = FastAPI()
@@ -26,7 +26,7 @@ async def create_table(cod_user:int):
 async def chat_NutrIA(body: dict):
     try:
         pergunta = body["cPrompt"]
-        resposta = nutria_bot(body["nCdUser"], body["iChat"], pergunta)
+        resposta = Tria(pergunta,body["nCdUser"])
         return JSONResponse(content={"Pergunta": pergunta, "Resposta":resposta}, status_code=200)
     except Http_Exception as http:
         return JSONResponse(content={"message":http.mensagem}, status_code=http.codigo)
