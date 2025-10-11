@@ -1,0 +1,63 @@
+## Fluxos do Aplicativo Nutria
+
+### 1. Fluxo de Autenticação (Login e Cadastro)
+
+Este fluxo cobre a entrada inicial do usuário no aplicativo, seja para quem já tem conta ou para novos usuários.
+
+* **Login**: Tela de boas-vindas para retorno ("Bem-Vindo(a) de volta!").
+* **Cadastro**: Tela de boas-vindas ("Bem-Vindo(a)!") com campos de entrada para informações de registro.
+* **Foto Perfil**: Tela de boas-vindas personalizada ("Olá, nome!") que solicita ao usuário a conexão com um perfil profissional antes de continuar.
+
+### 2. Fluxo da Tela Inicial e Chat de IA
+
+Este fluxo mostra o ponto de partida do aplicativo e a funcionalidade de assistência por IA.
+
+* **Tela Inicial**: Exibe a marca "Nutria" e tem opções como "Laboratório de receitas" e "Receitas".
+* **Tela Inicial - Usuário (Interação)**: Mostra interações do usuário com o aplicativo, possivelmente indicando feedback ou mensagens de status.
+* **NutriA - Chat de IA**:
+    * **Sem Histórico**: Mostra a tela de boas-vindas do Chat de IA da Nutria.
+    * **Com Histórico**: Apresenta um diálogo onde o usuário pergunta sobre a tabela nutricional em embalagens com pouco espaço, e o assistente de IA responde que a tabela nutricional deve estar impressa próxima à lista de ingredientes e que o QR Code é um extra, não substituto.
+
+### 3. Fluxo de Cálculo Nutricional
+
+Este é um dos fluxos centrais, permitindo a entrada de dados de ingredientes para gerar uma Tabela Nutricional.
+
+* **Tela Cálculo**: Tela inicial de cálculo, solicitando "Nome do Produto", "Tipo de medida de porção", "Quantidade de porção", e "Ingredientes". O botão principal é "Calcular Tabela Nutricional".
+* **Tela Cálculo - Cálculo**: Mostra o cálculo após a inserção de um ingrediente (exemplo: "Frango", 120g). Exibe o resultado da **Tabela Nutricional**, com o "Valor energético" de 120kcal, representando 2% do VD (Valor Diário).
+* **Tela Tabela Produto**: Mostra a Tabela Nutricional de um produto específico (exemplo: "Presunto levíssimo").
+
+### 4. Fluxo de Gestão de Ingredientes
+
+Este fluxo é sobre como o usuário gerencia a base de dados de ingredientes.
+
+* **Tela Ingredientes - Registrados**: Exibe uma lista de ingredientes já registrados (Frango, Carne bovina, Peixe, etc.) com a opção "Adicionar" para cada um. Há um campo de busca.
+* **Tela Ingredientes - Novo**: Permite ao usuário cadastrar um novo ingrediente, solicitando dados nutricionais detalhados como: "Nome do ingrediente", "Caloria (kcal)", "Carboidrato (g)", "Açúcar (g)", "Proteína (g)", "Gorduras totais (g)", "Gorduras saturadas (g)", "Sódio (mg)", "Fibra alimentar (g)", "Água (g)", e "Colesterol (mg)".
+
+### 5. Fluxo de Avaliação e Exportação
+
+Este fluxo trata da análise e do compartilhamento da Tabela Nutricional.
+
+* **Tela Avaliação**: Exibe a Tabela Nutricional e um resumo de avaliação dividido em "pontos bons e ruins". O exemplo mostra "Pontos bons:" como "Proteínas (6,2g) - 75: Boa quantidade para lanches".
+* **Tela Visualizar Tabela**: Mostra a Tabela Nutricional calculada, com a opção "Ver opções".
+* **Aba Exportação - Tabela**: Permite exportar a tabela, com opções para "Formato", "Fonte", "Montierinat" (provavelmente Margem ou algo similar) e "Compactação". Há uma notificação ("Toast") que informa: "Tabela salva como pdf nos seus arquivos".
+
+### 6. Fluxo de Perfil e Informações Pessoais
+
+Este fluxo foca nas informações e configurações da conta do usuário.
+
+* **Tela Perfil**: Exibe o nome e a foto do perfil (exemplo: Sarah da Silva Costa).
+* **Informações**: Mostra dados pessoais como nome, telefone e e-mail.
+* **Outras opções**: Inclui a funcionalidade de "Alterar senha".
+
+### 7. Fluxo de Scanner (Processo Inverso)
+
+Este fluxo permite a criação de uma Tabela Nutricional a partir de uma foto de uma embalagem.
+
+* **Scanner / Câmera**: Solicita ao usuário que "Centralize a tabela ao Scanner". Mostra uma imagem de uma embalagem de produto com a "INFORMAÇÃO NUTRICIONAL".
+* **Processo inverso**: Exibe a Tabela Nutricional gerada a partir da foto da embalagem. Abaixo, mostra uma "Avaliação" resumida (exemplo: Proteínas, Sódio, Gorduras Totais).
+
+### 8. Fluxo de Comparação
+
+Este fluxo é sobre a análise comparativa entre produtos.
+
+* **Tela Comparação**: Exibe diferentes estágios da comparação, incluindo a tela para "Escolha tabela" e a visualização final dos itens lado a lado.

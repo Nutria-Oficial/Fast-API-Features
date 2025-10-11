@@ -3,7 +3,8 @@
     "nCdUsuario":"Código do usuário",
     "iChat":"Indice do chat, o usuário pode ter vários chats",
     "lUser":"Array contendo todas as mensagens que o usuário mandou",
-    "lBot":"Array contendo todas as mensagens que o bot mandou"
+    "lBot":"Array contendo todas as mensagens que o bot mandou",
+    "lMemoria": "Array contendo objetos que serão utilizados para compor o histórico/memória da conversa com o usuário"
 },
 
 {

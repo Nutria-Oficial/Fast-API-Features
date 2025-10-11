@@ -4,7 +4,7 @@
     "cNmTabela": "Nome da tabela",
     "nTotal": "Quantidade total da tabela (seja em grmas ou em mililitros)",
     "nPorcao": "Quantidade total por porção (seja em grmas ou em mililitros)",
-    "lIngredientes": "Array que contém documentos contendo o código do nutriente e sua quantidade",
+    "lIngredientes": "Array que contém documentos contendo o código do ingrediente e sua quantidade",
     "lNutrientes": "Array que contém os nomes dos nutrientes da tabela",
     "lTotal": "Array que contém os valores totais de cada um dos nutrientes do array lNutrientes",
     "lPorcao": "Array que contém os valores de porção de cada um dos nutrientes do array lNutrientes",

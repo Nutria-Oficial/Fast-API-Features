@@ -1,8 +1,9 @@
 from fastapi import FastAPI
-from libs.TableCreator import criar_tabela_nutricional
-from libs.Nutr_IA import nutria_bot
 from fastapi.responses import JSONResponse
-from libs.Exception import Http_Exception
+from libs.TableCreator import criar_tabela_nutricional
+from libs.TrIA import Tria
+from libs.AutomaticEmbedding import criar_embedding
+from libs.Utils.Exception import Http_Exception
 
 api = FastAPI()
 
@@ -25,8 +26,19 @@ async def create_table(cod_user:int):
 async def chat_NutrIA(body: dict):
     try:
         pergunta = body["cPrompt"]
-        resposta = nutria_bot(body["nCdUser"], body["iChat"], pergunta)
+        resposta = Tria(pergunta,body["nCdUser"])
         return JSONResponse(content={"Pergunta": pergunta, "Resposta":resposta}, status_code=200)
+    except Http_Exception as http:
+        return JSONResponse(content={"message":http.mensagem}, status_code=http.codigo)
+    except Exception as e:
+        return JSONResponse(content={"message":e}, status_code=500)
+
+
+@api.post("/embedding/")
+async def embedding():
+    try:
+        criar_embedding()
+        return JSONResponse(content={"message":"Os produtos tiveram o embedding realizado com sucesso"}, status_code=200)
     except Http_Exception as http:
         return JSONResponse(content={"message":http.mensagem}, status_code=http.codigo)
     except Exception as e:

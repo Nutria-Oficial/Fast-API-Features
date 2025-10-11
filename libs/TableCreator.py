@@ -1,37 +1,17 @@
 # Importações necessárias
-import os
 import pandas as pd
 import json
-from pymongo import MongoClient
-from urllib.parse import quote_plus
-import valkey
-from dotenv import load_dotenv
 from libs.AvaliadorNutricional import classificar
 from libs.DescreveAvaliacaoTabela import descrever_avaliacao
-from libs.Exception import Http_Exception
-
-
-__all__ = ["criar_tabela_nutricional"]
-
-load_dotenv() # Obtendo as variáveis seguras
+from libs.Utils.Exception import Http_Exception
+from libs.Utils.Connection import get_coll, COLLS, get_redis
 
 # Conexões
-
-# MongoDB
-username = quote_plus(os.getenv("MONGO_USER"))
-password = quote_plus(os.getenv("MONGO_PWD")) 
-
-uri = f"mongodb+srv://{username}:{password}@nutriamdb.zb8v6ic.mongodb.net/?retryWrites=true&w=majority"
-
-conn = MongoClient(uri)
-db = conn["NutriaMDB"]
-coll_ingrediente = db["ingrediente"]
-coll_tabela = db["tabela"]
-
+coll_tabela = get_coll(COLLS["tabela_nutricional"])
+coll_ingrediente = get_coll(COLLS["ingrediente"])
 
 # Redis
-valkey_uri = os.getenv("REDIS_URI")
-redis = valkey.from_url(valkey_uri)
+redis = get_redis()
 prefixo_requisicao_user = "requisicao_user:"
 
 # Constantes
@@ -181,7 +161,7 @@ def __gerar_tabela_nutricional(ingredientes:list[dict], porcao:float):
         ingrediente_code = int(ingrediente["nCdIngrediente"])
 
         row = coll_ingrediente.aggregate([{"$match":{"_id":ingrediente_code}},
-                                         {"$project":{"_id":0, "cNmIngrediente":0, "cCategoria":0}}]).to_list()[0]
+                                         {"$project":{"_id":0, "cEmbedding":0,"cNmIngrediente":0, "cCategoria":0}}]).to_list()[0]
 
         for key, value in row.items():
             table_info[key] += value
@@ -197,13 +177,13 @@ def __gerar_tabela_nutricional(ingredientes:list[dict], porcao:float):
 
     return df_final,total_amount
 
-def __inserir_tabela_bd(cod_user:int, nome_tabela:str, total_tabela:float, porcao:float, unidade_de_medida:str,ingredientes:list[dict], tabela:dict):
+def __inserir_tabela_bd(cod_produto:int, nome_tabela:str, total_tabela:float, porcao:float, unidade_de_medida:str,ingredientes:list[dict], tabela:dict):
     """
     # MongoDB ``insert``
      Método responsável por inserir a tabela nutricional no formato correto dentro do MongoDB
 
     ## Parâmetros:
-    - ``cod_user``: Código do usuário que está inserindo a tabela
+    - ``cod_produto``: Código do produto ao qual a tabela pertence
     - ``nome_tabela``: Nome da tabela nutricional, para diferencia-la das demais
     - ``total_tabela``: Total em volume/peso da tabela
     - ``porcao``: Quantidade de volume/peso por porção
@@ -218,10 +198,12 @@ def __inserir_tabela_bd(cod_user:int, nome_tabela:str, total_tabela:float, porca
         {"$limit":1},
         {"$project":{"_id":1}}]
 
-        next_id = coll_tabela.aggregate(aggregate).to_list()[0]["_id"]+1
+        result_biggest_id = coll_tabela.aggregate(aggregate).to_list()
 
-        # Pegando uma informação do Redis
-        cod_produto = float(redis.hget(prefixo_requisicao_user+str(cod_user), "cod_produto"))
+        if (len(result_biggest_id) >= 1):
+            next_id = result_biggest_id[0]["_id"]+1
+        else:
+            next_id = 1
 
         # Criação do objeto base que vai ser inserido
         tabela_banco = {
@@ -264,7 +246,6 @@ def __inserir_tabela_bd(cod_user:int, nome_tabela:str, total_tabela:float, porca
 # Obtendo informações do Redis
 # ----------------------------------------
 
-
 def criar_tabela_nutricional(cod_user:int):
     """
     # TableCreator
@@ -284,6 +265,9 @@ def criar_tabela_nutricional(cod_user:int):
         unidade_de_medida = str(redis.hget(prefixo_requisicao_user+str(cod_user), "unidade_medida"))
         unidade_de_medida = unidade_de_medida.removeprefix("b'").removesuffix("'")
 
+        cod_produto = float(redis.hget(prefixo_requisicao_user+str(cod_user), "cod_produto"))
+
+
     except Exception as e:
         retorno = f"Ocorreu um erro ao tentar pegar os parâmetros para inserir a tabela nutricional do usuário {cod_user} \n Erro: {e}"
         raise Http_Exception(400, retorno)
@@ -295,12 +279,36 @@ def criar_tabela_nutricional(cod_user:int):
 
     try:
         # Inserindo ela no MongoDB
-        __inserir_tabela_bd(cod_user, nome_tabela, total_tabela, porcao, unidade_de_medida, ingredientes, tabela)
+        __inserir_tabela_bd(cod_produto, nome_tabela, total_tabela, porcao, unidade_de_medida, ingredientes, tabela)
 
         retorno = f"Tabela nutricional do usuário {cod_user} foi inserida no MongoDB"
         return retorno
     
     except Exception as e:
         raise Http_Exception(400, e)
+
+
+def criar_tabela_nutricional_IA(
+        nome_tabela:str,
+        porcao:float,
+        ingredientes:list[dict],
+        unidade_de_medida:str,
+        cod_produto: int
+):
+    """
+    # TableCreator
+    Função que cria automaticamente a tabela nutricional que o usuário pediu, e já insere dentro do MongoDB, recebendo todas as informações necessarias para criar tabela
+    """
+    # Gerando a tabela nutricional
+    tabela, total_tabela = __gerar_tabela_nutricional(ingredientes, porcao)
+
+    tabela = tabela.to_dict('list')
+
+    # Inserindo ela no MongoDB
+    __inserir_tabela_bd(cod_produto, nome_tabela, total_tabela, porcao, unidade_de_medida, ingredientes, tabela)
+
+    retorno = f"Tabela nutricional {nome_tabela} foi inserida no MongoDB"
+    return retorno
+    
 
     
