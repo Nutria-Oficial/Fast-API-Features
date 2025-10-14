@@ -12,6 +12,3 @@ google-genai
 langchain_google_genai
 google.generativeai
 langchain-community
-sentence-transformers
-hf_xet
-openpyxl
