@@ -8,9 +8,17 @@ from libs.Utils.Connection import get_coll, COLLS
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
-from sentence_transformers import SentenceTransformer
+import google.generativeai as genai
+from dotenv import load_dotenv
+import os
 import json
 
+# Carrega a chave do arquivo .env
+load_dotenv()
+genai.configure(api_key=os.getenv("GOOGLE_GEMINI_API"))
+
+# Escolha o modelo de embedding — o mais recente é o 'text-embedding-004'
+model = "text-embedding-004"
 
 # ============================ Memória =========================== 
 
@@ -150,8 +158,13 @@ def ingredient_find(
         # Criando a agregação e filtros
         agg = []
         if (cNmIngrediente):
-            model_embedding = SentenceTransformer("all-MiniLM-L6-v2")
-            query_emb = model_embedding.encode(cNmIngrediente).tolist()
+            
+            # Gerando o embedding
+            query_emb = genai.embed_content(
+                    model=model,
+                    content=cNmIngrediente
+                )["embedding"]
+            
             agg.extend([{
                     "$vectorSearch": {
                         "index": "vector_index",
@@ -283,11 +296,12 @@ def table_insert(
         # Obtendo cursor que interage com o banco de dados para pegar os códigos dos ingredientes
         cursor = get_coll(COLLS["ingrediente"])
 
-        model_embedding = SentenceTransformer("all-MiniLM-L6-v2")
-
         for i in lIngredientes:
             nome_ingrediente = i.pop("cNmIngrediente")
-            query_emb = model_embedding.encode(nome_ingrediente).tolist()
+            query_emb = genai.embed_content(
+                    model=model,
+                    content=nome_ingrediente
+                )["embedding"]
             agg = [
                 {
                     "$vectorSearch": {
@@ -313,7 +327,11 @@ def table_insert(
             # Mudando o cursor para conectar na collection de produtos e buscar o código do produto
             cursor = get_coll(COLLS["produto"])
 
-            query_emb = model_embedding.encode(cNmProduto).tolist()
+            query_emb = genai.embed_content(
+                    model=model,
+                    content=cNmProduto
+             )["embedding"]
+            
             agg = [
                 {
                     "$vectorSearch": {
