@@ -194,3 +194,7 @@ cython_debug/
 .cursorindexingignore
  
 .idea
+
+# Removendo os arquivos docker pois eles só servem para rodar localmente
+docker/Dockerfile.local
+docker-compose.yml
