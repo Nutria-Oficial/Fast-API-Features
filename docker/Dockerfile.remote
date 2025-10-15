@@ -1,0 +1,22 @@
+# Imagem base do Python
+FROM python:3.11-slim
+
+# Diretório de trabalho
+WORKDIR /app
+
+# Copiar apenas o arquivo de dependências
+COPY requirements.txt .
+
+# Instalar dependências (essa camada é cacheada)
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar só o código da aplicação
+COPY main.py .
+COPY ./libs ./libs
+COPY ./docs ./docs
+
+# Expor porta
+EXPOSE 8000
+
+# Executar o app
+CMD ["uvicorn", "main:api", "--host", "0.0.0.0", "--port", "8000"]
