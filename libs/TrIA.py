@@ -801,7 +801,7 @@ def criar_especialista(especialista:str):
         return criar_engenharia_agent()
 
 
-def Tria(pergunta_usuario, cod_usuario):
+def processa_pergunta(pergunta_usuario, cod_usuario):
     # Criando o agente roteador que irá dizer qual fluxo a conversa deverá seguir
     roteador = criar_roteador()
 
@@ -851,6 +851,38 @@ def Tria(pergunta_usuario, cod_usuario):
     set_history(cod_usuario, store[cod_usuario])
 
     return resposta_final
+
+
+def Tria(pergunta_usuario, cod_usuario):
+    try:
+        return processa_pergunta(pergunta_usuario, cod_usuario)
+    except Exception as e:
+        print("Ocorreu um erro ao consumir a API: ", e)
+
+        if ("quota" in str(e)):
+            # Quando ocorrer um erro, vai tentar pegar a outra api caso tenha ultrapassado o limite diário
+            api_key = os.getenv("GOOGLE_GEMINI_API_RESERVA")
+
+            llm = ChatGoogleGenerativeAI(
+                model="gemini-2.5-flash",
+                temperature=0.7,
+                top_p=0.95,
+                google_api_key=api_key
+            )
+
+            llm_fast = ChatGoogleGenerativeAI( 
+                model="gemini-2.0-flash", # Modelo baseado em performance
+                temperature=0.2, # Modelo deterministico, não vai ser criativo. Vai ser direto para o usuário evitando modificar qualquer coisa
+                google_api_key=api_key
+            )
+        else:
+            raise Exception(f"Ocorreu um erro ao consumir a API: {e}")
+
+        try: 
+            return processa_pergunta(pergunta_usuario, cod_usuario)
+        except Exception as ex:
+            raise Exception(f"O limite diário da API do gemini foi ultrapassado ou ocorreu outro erro: {ex}")
+
 
 
 # Teste manual da IA sem precisar chamar na API

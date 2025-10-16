@@ -1,12 +1,6 @@
 # Imagem base do Python
 FROM python:3.11-slim
 
-# Definir váriaveis de ambiente
-ENV GOOGLE_GEMINI_API=AIzaSyCXsCDfdj8zpNxdVgkZivmy_DmmxKdhiM4
-ENV MONGO_USER=nutria_host
-ENV MONGO_PWD=Nutria/010125
-ENV REDIS_URI=valkeys://default:AVNS_TH3fSOiwKocjzHt3wbu@valkey-21e83e5a-germinare-d9ec.k.aivencloud.com:10442
-
 # Diretório de trabalho
 WORKDIR /app
 
