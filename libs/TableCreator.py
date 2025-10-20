@@ -4,7 +4,7 @@ import json
 from libs.AvaliadorNutricional import classificar
 from libs.DescreveAvaliacaoTabela import descrever_avaliacao
 from libs.Utils.Exception import Http_Exception
-from libs.Utils.Connection import get_coll, COLLS, get_redis
+from libs.Utils.Connection import get_coll, COLLS, get_redis, get_highest_id
 
 # Conexões
 coll_tabela = get_coll(COLLS["tabela_nutricional"])
@@ -194,16 +194,7 @@ def __inserir_tabela_bd(cod_produto:int, nome_tabela:str, total_tabela:float, po
     
     try:
         # Adquirindo o próximo ID que vai ser inserido
-        aggregate = [{"$sort":{"_id":-1}},
-        {"$limit":1},
-        {"$project":{"_id":1}}]
-
-        result_biggest_id = coll_tabela.aggregate(aggregate).to_list()
-
-        if (len(result_biggest_id) >= 1):
-            next_id = result_biggest_id[0]["_id"]+1
-        else:
-            next_id = 1
+        next_id = get_highest_id(coll_tabela)
 
         # Criação do objeto base que vai ser inserido
         tabela_banco = {

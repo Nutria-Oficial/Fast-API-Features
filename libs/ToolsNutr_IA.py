@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain.schema import HumanMessage
 from libs.Utils.Exception import Http_Exception
-from libs.Utils.Connection import get_coll, COLLS
+from libs.Utils.Connection import get_coll, COLLS, get_highest_id
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -100,16 +100,7 @@ def set_history(nCdUsuario:int, history:ChatMessageHistory, iChat:int=1 ):
         # Não existe ainda
 
         # Adquirindo o próximo ID que vai ser inserido
-        agg = [{"$sort":{"_id":-1}},
-        {"$limit":1},
-        {"$project":{"_id":1}}]
-
-        result_biggest_id = cursor.aggregate(agg).to_list()
-
-        if (len(result_biggest_id) >= 1):
-            next_id = result_biggest_id[0]["_id"]+1
-        else:
-            next_id = 1
+        next_id = get_highest_id(cursor)
 
         # Criando objeto novo que vai ser inserido e inserindo ele dentro da collection
         memoria = {

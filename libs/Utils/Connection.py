@@ -34,6 +34,19 @@ def get_coll(coll):
     NutriaMDB = client[DB_NAME]
     return NutriaMDB[coll]
 
+def get_highest_id(cursor):
+    agg = [{"$sort":{"_id":-1}},
+        {"$limit":1},
+        {"$project":{"_id":1}}]
+    
+    result_highest_id = cursor.aggregate(agg).to_list()
+
+    if (len(result_highest_id) >= 1):
+        return result_highest_id[0]["_id"]+1
+    else:
+        return 1
+
+    
 
 # Redis Connection
 def get_redis():
