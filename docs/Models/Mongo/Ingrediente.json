@@ -39,7 +39,9 @@
     "nAgua(g)": "Nutriente"
 },
 
+
 {
+    "commentario":"Esse trecho abaixo é um exemplo de dado ja preenchido no modelo de um ingrediente",
     "_id": 1,
     "cNmIngrediente": "Leite, humano",
     "cCategoria": "Human milk",
