@@ -48,6 +48,7 @@ async def embedding():
         return JSONResponse(content={"message":e}, status_code=500)
     
 
+@api.post("/scanner/")
 async def scanner_tabela(nome_ingrediente:str, file: UploadFile = File(...)):
     try:
         # Lê os bytes do arquivo enviado
