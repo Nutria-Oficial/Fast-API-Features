@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from typing import Optional # padrao do python
 
 import os
+import json
 from dotenv import load_dotenv
 from libs.ToolsNutr_IA import TOOLS_BD, TOOLS_RAG, get_history, set_history, get_datetime
 
@@ -674,6 +675,80 @@ orquestrador_fewshots = FewShotChatMessagePromptTemplate(
     example_prompt=example_prompt_base
 )
 
+# ------------------------ Juiz ---------------------------
+juiz_system_prompt = ("system",
+"""
+    ### PAPEL
+    Você um juiz imparcial especialista em engenharia de alimentos e sua legislação, você é responsável por validar e verificar uma resposta de um outro especialista seguindo os seguintes critérios:
+    - Veracidade da informação
+    - A forma como esta escrito está bem explicativa?
+    - A resposta faz sentido de acordo com o contexto?
+
+    
+    ### ENTRADA
+    Você irá receber um dicionário contendo dois campos:
+    - pergunta_original: Uma string contendo o texto da pergunta original do usuário
+    - resposta_especialista: Uma string contendo a resposta gerada pelo especialista
+
+    
+    ### SAÍDA
+    Você deve avaliar a resposta e verificar se precisa de modificação, caso não precise de modificação retorne apenas a resposta original, caso precise, modifique a resposta e retorne a resposta modificada/ajustada
+
+    
+    ### HISTÓRICO DE CONVERSA
+    {chat_history}
+"""
+)
+
+class JuizResposta(BaseModel):
+    valido: bool = Field(..., description="Booleano dizendo se a resposta original está seguindo todos os critérios de avaliação")
+    resposta_ajustada: Optional[str] = Field(default=None, description="Resposta melhorada, quando a resposta original não estiver válida")
+
+juiz_shots = [
+    # 1) Resposta válida
+    {
+        "human":"""
+        {
+            "pergunta_original":"Por que o controle de temperatura é um fator essencial na conservação dos alimentos?",
+            "resposta_especialista":"Pensa assim: os alimentos são como pequenos ecossistemas — cheios de nutrientes, umidade e energia — o paraíso dos microrganismos! 😬
+
+            Mas esses microrganismos só ficam ativos em certas faixas de temperatura (geralmente entre 10 °C e 60 °C, a temida zona de perigo ⚠️).
+
+            👉 Quando a temperatura cai, tudo desacelera — enzimas param, bactérias “dormem” e o alimento dura mais.
+
+            👉 Quando a temperatura sobe demais, elas “fritam”: o calor destrói microrganismos e inativa enzimas.
+
+            💬 Resumo simples:
+            Controlar a temperatura é como colocar o alimento no modo “pause” da vida — ele não estraga, mantém sabor e textura, e continua seguro pra consumo! 😋"
+        }
+            """,
+        "ai":"""
+        {
+            "valido": True
+        }
+            """
+    },
+    # 2) Resposta inválida
+    {
+        "human":"""
+        {
+            "pergunta_original":"Qual alimento funciona bem com carne de porco?",
+            "resposta_especialista":"Eu acho que leite humano combina"
+        }
+        """,
+        "ai":"""
+        {
+            "valido": False,
+            "resposta_ajustada": "A carne de porco é comumente utilizada junta dos vários tipos de feijão e arroz, como em feijoada, virada paulista ou baião de dois"
+        }
+        """
+    }
+]
+
+juiz_few_shots = FewShotChatMessagePromptTemplate(
+    examples=juiz_shots,
+    example_prompt=example_prompt_base
+)
 
 # Criando objeto de prompts
 prompts = {
@@ -709,6 +784,12 @@ prompts = {
         MessagesPlaceholder("chat_history"),
         ("human", "{input}"),
     ]).partial(today_local = today_local),
+    "juiz": ChatPromptTemplate.from_messages([
+        orquestrador_system_prompt,
+        orquestrador_fewshots,
+        MessagesPlaceholder("chat_history"),
+        ("human", "{input}"),
+    ]),
 }
 
 
@@ -792,6 +873,21 @@ def criar_orquestrador():
         input_messages_key="input",
         history_messages_key="chat_history", handle_parsing_errors=False)
 
+def criar_juiz():
+    # 1. Cria a pipeline do roteador que retorna o OBJETO Pydantic (um RunnableSequence)
+    juiz_pipeline = (
+        prompts["juiz"] 
+        | llm 
+        | StrOutputParser()
+    )
+
+    # 3. Encapsula o novo runnable com o histórico
+    return RunnableWithMessageHistory(
+        juiz_pipeline, # Usa o Runnable que retorna a string JSON
+        get_session_history=get_session_history,
+        history_messages_key="chat_history",
+        input_messages_key="input", handle_parsing_errors=False)
+
 def criar_especialista(especialista:str):
     if especialista == "dados":
         return criar_bd_agent()
@@ -846,6 +942,22 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
         {"input":respostas_especialistas},
         config={"configurable":{"session_id":cod_usuario}}
     )
+
+    # Realizando verificação com juiz
+    juiz_entrada = {
+        "pergunta_original": pergunta_usuario,
+        "resposta_especialista": resposta_final
+    }
+
+    juiz = criar_juiz()
+
+    resposta_juiz_json = juiz.invoke(
+        {"input":juiz_entrada}, 
+        config={"configurable": {"session_id": cod_usuario}}
+    )
+
+    resposta_final = resposta_juiz_json
+   
 
     # Salvando a memória do chat no MongoDB
     set_history(cod_usuario, store[cod_usuario])
