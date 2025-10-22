@@ -15,7 +15,8 @@ import json
 
 # Carrega a chave do arquivo .env
 load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_GEMINI_API"))
+my_api_key = os.getenv("GOOGLE_GEMINI_API")
+genai.configure(api_key=my_api_key)
 
 # Escolha o modelo de embedding — o mais recente é o 'text-embedding-004'
 model = "text-embedding-004"
@@ -155,9 +156,8 @@ def ingredient_find(
                     model=model,
                     content=cNmIngrediente
                 )["embedding"]
-            
-            agg.extend([{
-                    "$vectorSearch": {
+                        
+            agg.extend([{"$vectorSearch": {
                         "index": "vector_index",
                         "path": "cEmbedding",
                         "queryVector": query_emb,
@@ -165,7 +165,7 @@ def ingredient_find(
                         "limit": 3
                     }
                 },
-                {"$set": {"score": {"$meta": "vectorSearchScore"}}}])
+            {"$set": {"score": {"$meta": "vectorSearchScore"}}}])
 
         # Colocando o limit na consulta
         agg.append({"$limit":iLimit})
@@ -175,7 +175,8 @@ def ingredient_find(
         return {"status":"ok", "result":resultado}
 
     except Exception as ex:
-        return {"status":"error", "mesage":ex}
+        retorno = {"status":"error", "mesage":ex}
+        return retorno
 
 # -------------------------- Produtos ----------------------------
 
@@ -192,9 +193,26 @@ def product_find(
         cursor = get_coll(COLLS["produto"])
 
         # Criando a agregação e filtros
-        agg = [{"$match": {"_id": {"$exists": True}}}]
+        
+        agg = []
         if (cNmProduto):
-            agg[0]["$match"]["cNmIngrediente"] = cNmProduto
+            query_emb = genai.embed_content(
+                    model=model,
+                    content=cNmProduto
+             )["embedding"]
+            
+            agg = [
+                {
+                    "$vectorSearch": {
+                        "index": "vector_index",
+                        "path": "cEmbedding",
+                        "queryVector": query_emb,
+                        "numCandidates": 50,
+                        "limit": 50
+                    }
+                },
+                {"$set": {"score": {"$meta": "vectorSearchScore"}}}
+            ]
 
         resultado = cursor.aggregate(agg).to_list()
 
