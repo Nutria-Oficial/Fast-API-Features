@@ -9,6 +9,7 @@ urllib3
 langchain
 google-genai
 langchain_google_genai
-google.generativeai
+google.generativeai==0.8.5
 langchain-community
 pillow
+python-multipart
