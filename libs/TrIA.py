@@ -55,6 +55,80 @@ example_prompt_base = ChatPromptTemplate.from_messages([
     AIMessagePromptTemplate.from_template("{ai}"),
 ])
 
+# ---------------------- Guardrail ------------------------
+guardrail_system_prompt = ("system",
+"""
+### PAPEL
+Sua função é reconhecer e detectar qualquer tipo de ameaça, violação dos direitos humanos, xingamentos, ofensas, apologias a crimes em textos fornecidos.
+
+
+### EXEMPLOS DE CRIMES
+- Racismo
+- Homofobia
+- Capacitismo
+- Misoginia
+- Xenofobia
+- Pedofilia
+- Tráfico de substâncias ilegais
+- Qualquer outra insinuação a qualquer tipo de crime
+
+
+### REAÇÃO
+Quando identificar uma frase que contenha algum tipo de crime, tente manter o usuário com calma e evite brigas, procure deixa-lo calmo e controlado, pedir para manter o clima saudável e amigável da conversa etc.
+
+
+### RESPOSTA/SAÍDA (JSON)
+Você deve verificar se uma entrada que você irá receber contém algum tipo desses crimes e retornar em formato JSON contendo os seguintes campos:
+- legal : (True|False)
+- resposta : Reação prevista para acalmar o usuário (opcional quando for legal=True)
+
+
+### Algumas regras
+- Não considere os Shots como parte do histórico, são apenas exemplos.
+- Nos shots tem valores genéricos (X, Y, Z, W) que você deve entender como valores reais, portanto, não é para mostrar do mesmo jeito para o usuário, mas sim com os valores que foram fornecidos pelo histórico da conversa.
+
+
+### REGRAS DE FORMATAÇÃO
+- Sempre retorne a resposta **em JSON válido**, usando `true` e `false` em minúsculas.
+- Nunca use `True` ou `False`.
+- O JSON deve ser puro, sem texto antes ou depois.
+
+"""
+)
+
+class GuardRailResposta(BaseModel):
+    legal: bool = Field(..., description="Se a resposta conter algum tipo de crime ela é legal=False, caso não contenha é legal=True")
+    resposta: Optional[str] = Field(default=None, description="Reação prevista para acalmar o usuário (opcional quando for legal=True)")
+
+guardrail_shots = [
+    # 1) Legal = True simples
+    {
+        "human":"Gostaria de saber qual tipo de alimento harmoniza com frango assado",
+        "ai":"""{"legal":true}"""
+    },
+    # 2) Legal = False simples
+    {
+        "human":"Vai tomar no seu cu",
+        "ai":"""{"legal":false, "resposta":"Sinto muito que esteja com raiva, vamos manter o tom harmonioso e tranquilo da conversa. :) Se precisar de um tempo para se acalmar estarei aqui quando voltar."}"""
+    },
+    # 3) Legal = True Complexo
+    {
+        "human":"Macacos são alérgicos a quais frutas?",
+        "ai":"""{"legal":true}"""
+    },
+    # 4) Legal = False Complexo
+    {
+        "human":"Meu amigo da escola é um macaco, posso entregar banana para ele?",
+        "ai":"""{"legal":false,"resposta":"Racismo é crime e não será tolerado em nosso aplicativo, se acalme e revise seus conceitos."}"""
+    }
+]
+
+guardrail_few_shots = FewShotChatMessagePromptTemplate(
+    examples=guardrail_shots,
+    example_prompt=example_prompt_base
+)
+
+
 # ---------------------- Roteador -------------------------
 roteador_sytem_prompt = ("system",
     """
@@ -700,10 +774,6 @@ juiz_system_prompt = ("system",
 """
 )
 
-class JuizResposta(BaseModel):
-    valido: bool = Field(..., description="Booleano dizendo se a resposta original está seguindo todos os critérios de avaliação")
-    resposta_ajustada: Optional[str] = Field(default=None, description="Resposta melhorada, quando a resposta original não estiver válida")
-
 juiz_shots = [
     # 1) Resposta válida
     {
@@ -752,6 +822,12 @@ juiz_few_shots = FewShotChatMessagePromptTemplate(
 
 # Criando objeto de prompts
 prompts = {
+    "guardrail": ChatPromptTemplate.from_messages([
+        guardrail_system_prompt,
+        guardrail_few_shots,
+        MessagesPlaceholder("chat_history"),
+        ("human", "{input}"),
+    ]),
     "roteador": ChatPromptTemplate.from_messages([
         roteador_sytem_prompt,
         roteador_fewshots,
@@ -795,6 +871,19 @@ prompts = {
 
 # =========================================================
 # Criação dos agentes
+def criar_guardrail():
+    guardrail_pipeline = (
+        prompts["guardrail"]
+        | llm
+        | JsonOutputParser()
+    )
+
+    return RunnableWithMessageHistory( 
+        guardrail_pipeline, # Usa o Runnable que retorna a string JSON 
+        get_session_history=get_session_history, 
+        history_messages_key="chat_history", 
+        input_messages_key="input", 
+        handle_parsing_errors=False)
 
 def criar_roteador():
     # 1. Cria a pipeline do roteador que retorna o OBJETO Pydantic (um RunnableSequence)
@@ -898,6 +987,22 @@ def criar_especialista(especialista:str):
 
 
 def processa_pergunta(pergunta_usuario, cod_usuario):
+    # Aplicando o guardrail para a IA
+    guardrail = criar_guardrail()
+
+    resposta_guardrail = GuardRailResposta(**(
+        guardrail.invoke(
+        {"input":pergunta_usuario}, 
+        config={"configurable": {"session_id": "cod_usuario"}}
+        ))
+    )
+
+    if (not resposta_guardrail.legal):
+        # Salvando a memória do chat no MongoDB
+        set_history(cod_usuario, store[cod_usuario])
+        return resposta_guardrail.resposta
+
+
     # Criando o agente roteador que irá dizer qual fluxo a conversa deverá seguir
     roteador = criar_roteador()
 
