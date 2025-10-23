@@ -16,9 +16,9 @@ import json
 # Carrega a chave do arquivo .env
 load_dotenv()
 my_api_key = os.getenv("GOOGLE_GEMINI_API")
-genai.configure(api_key=my_api_key)
 
-# Escolha o modelo de embedding — o mais recente é o 'text-embedding-004'
+
+# Escolha do modelo de embedding — o mais recente é o 'text-embedding-004'
 model = "text-embedding-004"
 
 # ============================ Memória =========================== 
@@ -150,6 +150,7 @@ def ingredient_find(
         # Criando a agregação e filtros
         agg = []
         if (cNmIngrediente):
+            genai.configure(api_key=my_api_key)
             
             # Gerando o embedding
             query_emb = genai.embed_content(
@@ -196,6 +197,7 @@ def product_find(
         
         agg = []
         if (cNmProduto):
+            genai.configure(api_key=my_api_key)
             query_emb = genai.embed_content(
                     model=model,
                     content=cNmProduto
@@ -307,6 +309,7 @@ def table_insert(
 
         for i in lIngredientes:
             nome_ingrediente = i.pop("cNmIngrediente")
+            genai.configure(api_key=my_api_key)
             query_emb = genai.embed_content(
                     model=model,
                     content=nome_ingrediente
@@ -335,7 +338,8 @@ def table_insert(
         if (not nCdProduto):
             # Mudando o cursor para conectar na collection de produtos e buscar o código do produto
             cursor = get_coll(COLLS["produto"])
-
+            
+            genai.configure(api_key=my_api_key)
             query_emb = genai.embed_content(
                     model=model,
                     content=cNmProduto
