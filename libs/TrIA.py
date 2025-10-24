@@ -93,6 +93,9 @@ Você deve verificar se uma entrada que você irá receber contém algum tipo de
 - Nunca use `True` ou `False`.
 - O JSON deve ser puro, sem texto antes ou depois.
 
+
+### HISTÓRICO DA CONVERSA
+{chat_history}
 """
 )
 
