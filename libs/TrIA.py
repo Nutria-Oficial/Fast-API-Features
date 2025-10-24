@@ -996,7 +996,7 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
     resposta_guardrail = GuardRailResposta(**(
         guardrail.invoke(
         {"input":pergunta_usuario}, 
-        config={"configurable": {"session_id": "cod_usuario"}}
+        config={"configurable": {"session_id": cod_usuario}}
         ))
     )
 
