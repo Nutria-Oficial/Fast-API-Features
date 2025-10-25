@@ -16,17 +16,18 @@ import os
 import json
 from dotenv import load_dotenv
 from libs.ToolsNutr_IA import TOOLS_BD, TOOLS_RAG, get_history, set_history, get_datetime
+from langgraph.graph import StateGraph, START, END
 
 
 today_local = get_datetime()
 
 # Memória -------------------------------------------------
-store = {}
+memory_store = {}
  
 def get_session_history(session_id) -> ChatMessageHistory:
-    if session_id not in store:
-        store[session_id] = get_history(session_id)
-    return store[session_id]
+    if session_id not in memory_store:
+        memory_store[session_id] = get_history(session_id)
+    return memory_store[session_id]
 
 
 # LLMs ----------------------------------------------------
@@ -146,7 +147,7 @@ roteador_sytem_prompt = ("system",
 
     ### PAPEL
     - Seu foco é acolher o usuário e manter o foco em ENGENHARIA DE ALIMENTOS E SUA LEGISLAÇÃO ou SOBRE O APP ou AÇÕES QUE AFETEM O BANCO DE DADOS
-    - Decidir a rota: {{engenharia | app | dados | small_talk}}.
+    - Decidir as rotas: {{engenharia | app | dados | analise_completa | small_talk}}.
     - Responder diretamente (small_talk,) em:
     (a) saudações/small talk, ou 
     (b) fora de escopo (redirecionando para rotas pré-estabelecidas anteriormente).
@@ -163,19 +164,22 @@ roteador_sytem_prompt = ("system",
       - Dúvidas sobre como utilizar o aplicativo, rotas/fluxo do aplicativo.
     - dados:
       - Pesquisar sobre produtos, ingredientes e outras tabelas nutricionais
+    - analise_completa:
+      - Quando é necessário pesquisar algo no banco para depois disso responder uma pergunta da rota de engenharia
     - small_talk:
       - Conversas simples, saudações, fora do escopo ou para pedir dados e informações extras
     
+      
     ### REGRAS
     - Seja breve, educada, simpática e objetiva.
     - Se faltar um dado absolutamente essencial para decidir a rota, faça UMA pergunta mínima (CLARIFY). Caso contrário, deixe CLARIFY vazio.
-    - Responda de forma textual.
+    - SEMPRE responda no formato presente na seção SAÍDA (JSON)
 
     
     ### SAÍDA (JSON)
         Campos mínimos para enviar (ou não) para os especialistas:
         # Obrigatórios:
-        - routes : ["engenharia" | "app" | "dados" | "small_talk"]
+        - route : "engenharia" | "app" | "dados" | "analise_completa" |"small_talk"
         
         # Quando for "small_talk":
         - resposta_small_talk : Resposta simples
@@ -193,7 +197,7 @@ roteador_sytem_prompt = ("system",
 
 # Formato de saída
 class RoteadorResposta(BaseModel):
-    routes: list = Field(..., description="Uma LISTA (list) de rotas na ordem que o fluxo vai seguir, caso seja 'small_talk' preencha o campo 'resposta_small_talk'")
+    route: str = Field(..., description="Uma rota que o fluxo vai seguir, caso seja 'small_talk' preencha o campo 'resposta_small_talk'")
     resposta_small_talk: Optional[str] = Field(default=None, description="Preenchido apenas quando a rota for 'small_talk', contendo respostas simples e pequenas como saudações, clarificações ou redirecionando perguntas para o contexto correto")
     pergunta_original: Optional[str] = Field(default=None, description="Mensagem completa do usuário, sem edições")
     persona: Optional[str] = Field(default=None, description="Copie o bloco '{PERSONA SISTEMA}' daqui")
@@ -204,7 +208,7 @@ roteador_shots = [
     {
         "human": "Oi, tudo bem?",
         "ai": """{
-            "routes":["small_talk"],
+            "route":"small_talk",
             "resposta_small_talk": "Oiee! Como posso te ajudar no mundo da alimentação? 😊"    
         }"""
     },
@@ -212,7 +216,7 @@ roteador_shots = [
     {
         "human": "Me conta uma piada.",
         "ai": """{
-            "routes":["small_talk"],
+            "route":"small_talk",
             "resposta_small_talk": "Perdão! 😓 Consigo ajudar apenas com engenharia de alimentos, dúvidas sobre o Nutria e ajudar com as tabelas nutricionais. Gostaria de mais alguma coisa?"    
         }"""
     },
@@ -220,7 +224,7 @@ roteador_shots = [
     {
         "human": "Qual ingrediente eu poderia utilizar para harmonizar com batatas?",
         "ai": """{
-            "routes":["engenharia"],
+            "route":"engenharia",
             "pergunta_original":"Qual ingrediente eu poderia utilizar para harmonizar com batatas?",
             "persona":"{PERSONA_SISTEMA}"
         }"""
@@ -229,7 +233,7 @@ roteador_shots = [
     {
         "human": "Para que o Nutria serve?",
         "ai": """{
-            "routes":["app"],
+            "route":"app",
             "pergunta_original":"Para que o Nutria serve?",
             "persona":"{PERSONA_SISTEMA}"
         }"""
@@ -238,7 +242,7 @@ roteador_shots = [
     {
         "human": "Qual é o ingrediente com mais caloria cadastrado?",
         "ai": """{
-            "routes":["dados"],
+            "route":"dados",
             "pergunta_original":"Qual é o ingrediente com mais caloria cadastrado?",
             "persona":"{PERSONA_SISTEMA}"
         }"""
@@ -247,7 +251,7 @@ roteador_shots = [
     {
         "human":"Qual das tabelas nutricionais do produto Carne Desfiada Swift estão melhor encaixados na legislação de tabelas?",
         "ai": """{
-            "routes":["dados", "engenharia"],
+            "route":"analise_completa",
             "pergunta_original":"Qual das tabelas nutricionais do produto Carne Desfiada Swift estão melhor encaixados na legislação de tabelas?",
             "persona":"{PERSONA_SISTEMA}"
         }"""
@@ -256,7 +260,7 @@ roteador_shots = [
     {
         "human": "Quero criar uma tabela nutricional",
         "ai": """{
-            "routes":["dados"],
+            "route":"dados",
             "pergunta_original":"Quero criar uma tabela nutricional",
             "persona":"{PERSONA_SISTEMA}"
         }"""
@@ -698,7 +702,7 @@ orquestrador_system_prompt = ("system",
 
 
     ### ENTRADA
-    - Lista de dicionarios ESPECIALISTA_JSON contendo chaves como:
+    - Uma lista de dicionarios ESPECIALISTA_JSON contendo chaves como:
     dominio, intencao, resposta, recomendacao (opcional), acompanhamento (opcional),
     esclarecer (opcional), janela_tempo (opcional), evento (opcional), escrita (opcional), indicadores (opcional).
 
@@ -889,20 +893,14 @@ def criar_guardrail():
         handle_parsing_errors=False)
 
 def criar_roteador():
-    # 1. Cria a pipeline do roteador que retorna o OBJETO Pydantic (um RunnableSequence)
     roteador_pipeline = (
         prompts["roteador"] 
         | llm_fast 
-        | PydanticOutputParser(pydantic_object=RoteadorResposta)
+        | JsonOutputParser()
     )
-    
-    # 2. ENCADEIA a função lambda para converter o objeto Pydantic em uma STRING JSON
-    # Isso é feito com o operador | (pipe)
-    roteador_json_string = roteador_pipeline | (lambda x: x.model_dump_json())
 
-    # 3. Encapsula o novo runnable com o histórico
     return RunnableWithMessageHistory(
-        roteador_json_string, # Usa o Runnable que retorna a string JSON
+        roteador_pipeline, # Usa o Runnable que retorna a string JSON
         get_session_history=get_session_history,
         history_messages_key="chat_history",
         input_messages_key="input", handle_parsing_errors=False)
@@ -989,93 +987,250 @@ def criar_especialista(especialista:str):
         return criar_engenharia_agent()
 
 
-def processa_pergunta(pergunta_usuario, cod_usuario):
-    # Aplicando o guardrail para a IA
+# =========================================================
+# Nodes
+
+# ---------------------------------------------------------
+# Criação dos nós no langGraph
+def guardrail_node(state: dict) -> dict:
+     # Aplicando o guardrail para a IA
     guardrail = criar_guardrail()
 
-    resposta_guardrail = GuardRailResposta(**(
-        guardrail.invoke(
-        {"input":pergunta_usuario}, 
-        config={"configurable": {"session_id": cod_usuario}}
-        ))
-    )
-
-    if (not resposta_guardrail.legal):
-        # Salvando a memória do chat no MongoDB
-        set_history(cod_usuario, store[cod_usuario])
-        return resposta_guardrail.resposta
-
-
-    # Criando o agente roteador que irá dizer qual fluxo a conversa deverá seguir
-    roteador = criar_roteador()
-
-    # Obtendo a resposta do roteador
-    resposta_roteador_json = roteador.invoke(
-        {"input":pergunta_usuario}, 
-        config={"configurable": {"session_id": cod_usuario}}
-    )
-
-    # Transformando a resposta do roteador de volta no objeto da classe RoteadorResposta
-    resposta_roteador = RoteadorResposta.model_validate_json(resposta_roteador_json)
-
-    # Adquirindo todas as rotas que o roteador quer que siga
-    rotas = resposta_roteador.routes
-    
-    # Caso seja small_talk, vai retornar somente a resposta small_talk sem nem criar os outros agentes
-    if "small_talk" in rotas:
-        # Salvando a memória do chat no MongoDB
-        set_history(cod_usuario, store[cod_usuario])
-        return resposta_roteador.resposta_small_talk
-    
-    # Pegando as respostas dos especialistas
-    respostas_especialistas = []
-
-    entrada_json = str(resposta_roteador.model_dump_json())
-    
-    for rota in rotas:
-        especialista = criar_especialista(rota)
-
-        resposta_especialista = especialista.invoke(
-            {"input":entrada_json},
-            config={"configurable":{"session_id":cod_usuario}}
+    try:
+        resposta_guardrail = GuardRailResposta(**(
+            guardrail.invoke(
+            {"input": state["input"]}, 
+            config={"configurable": {"session_id": state["session_id"]}}
+            ))
         )
 
-        respostas_especialistas.append(resposta_especialista["output"])
+        if (not resposta_guardrail.legal):
+            # Salvando a memória do chat no MongoDB
+            return {"resposta_usuario":resposta_guardrail.resposta}
+        
+        return {"input":state["input"], "session_id":state["session_id"]}
+    
+    except Exception as e:
+        return {"erro": f"Ocorreu um erro ao rodar o guardrail: {e}"}
 
-    # Criando o orquestrador para gerar a resposta final
+
+def roteador_node(state: dict) -> dict:
+    roteador = criar_roteador()
+
+    try:
+        resposta_roteador = RoteadorResposta(**roteador.invoke(
+            {"input": state["input"]}, 
+            config={"configurable": {"session_id": state["session_id"]}}
+        )  )
+        
+        if resposta_roteador.route == "small_talk":
+            return {"resposta_usuario": resposta_roteador.resposta_small_talk}
+
+        return {"rota": resposta_roteador.route, "roteador": resposta_roteador, 'input':state['input'], 'session_id': state['session_id']}
+    
+    except Exception as e:
+        return {"erro": f"Ocorreu um erro ao rodar o roteador: {e}"}
+
+
+def dados_node(state: dict) -> dict:
+    bd_agent = criar_bd_agent()
+    try:
+        result = bd_agent.invoke(
+            {"input": state['roteador']}, 
+            config={"configurable": {"session_id": state["session_id"]}}
+        )  
+        return {"saida_especialista": [result["output"]], "session_id": state["session_id"], "input":state["input"] }
+    except Exception as e:
+        return {"erro": f"Ocorreu um erro ao rodar o dados: {e}"}
+
+
+def engenharia_node(state: dict) -> dict:
+    engenharia = criar_engenharia_agent()
+    try:
+        result = engenharia.invoke(
+            {"input": state['roteador']}, 
+            config={"configurable": {"session_id": state["session_id"]}}
+        )  
+        return {"saida_especialista":[result["output"]], "session_id": state["session_id"], "input":state["input"] }
+    except Exception as e:
+        return {"erro": f"Ocorreu um erro ao rodar o engenharia: {e}"}
+        
+
+def app_node(state: dict) -> dict:
+    app_agent = criar_app_agent()
+    try:
+
+        result = app_agent.invoke(
+            {"input": state['roteador']}, 
+            config={"configurable": {"session_id": state["session_id"]}}
+        )  
+        return {"saida_especialista": [result["output"]], "session_id": state["session_id"], "input":state["input"] }
+    except Exception as e:
+        return {"erro": f"Ocorreu um erro ao rodar o app: {e}"}
+
+
+def analise_completa_node(state: dict) -> dict:
+    bd_agent = criar_bd_agent()
+    engenharia = criar_engenharia_agent()
+
+    try:
+        result_bd = bd_agent.invoke(
+            {"input": state['roteador']}, 
+            config={"configurable": {"session_id": state["session_id"]}}
+        )  
+
+        result_engenharia = engenharia.invoke(
+            {"input": state['roteador']}, 
+            config={"configurable": {"session_id": state["session_id"]}}
+        )  
+
+        return {"saida_especialista": [result_bd["output"], result_engenharia["output"]], "session_id": state["session_id"], "input":state["input"] }
+    except Exception as e:
+        return {"erro": f"Ocorreu um erro ao rodar o analise_completa: {e}"}
+
+
+def orquestrador_node(state: dict) -> dict:
     orquestrador = criar_orquestrador()
+    try:
+        resposta_final = orquestrador.invoke(
+            {"input": state['saida_especialista']},
+            config={"configurable": {"session_id": state["session_id"]}}
+        )  
+        return {"resposta_usuario": resposta_final, "input":state["input"], "session_id":state["session_id"]}
+    except Exception as e:
+        return {"erro": f"Ocorreu um erro ao rodar o orquestrador: {e}"}
 
-    # Gerando a resposta final com todas as respostas dos especialistas e retornando
-    resposta_final = orquestrador.invoke(
-        {"input":respostas_especialistas},
-        config={"configurable":{"session_id":cod_usuario}}
-    )
 
-    # Realizando verificação com juiz
-    juiz_entrada = {
-        "pergunta_original": pergunta_usuario,
-        "resposta_especialista": resposta_final
-    }
-
+def juiz_node(state: dict) -> dict:
     juiz = criar_juiz()
+    try:
+        juiz_entrada = {
+            "pergunta_original": state["input"],
+            "resposta_especialista": state["resposta_usuario"]
+        }
+        resposta_final = juiz.invoke(
+            {"input": juiz_entrada},
+            config={"configurable": {"session_id": state["session_id"]}}
+        )  
+        return {"resposta_usuario": resposta_final}
+    except Exception as e:
+        return {"erro": f"Ocorreu um erro ao rodar o juiz: {e}"}
 
-    resposta_juiz_json = juiz.invoke(
-        {"input":juiz_entrada}, 
-        config={"configurable": {"session_id": cod_usuario}}
-    )
+# ---------------------------------------------------------
+# Decisores
+def decide_after_guardrail(state:dict) -> str:
+    if state.get("resposta_usuario"):
+        return "end"
+    return "roteador"
 
-    resposta_final = resposta_juiz_json
-   
+def decide_after_router(state: dict) -> str:
+    if state.get("erro") or state.get("resposta_usuario"):
+        return "end"
+    rota = state.get("rota")
+    if rota == "engenharia":
+        return "engenharia"
+    if rota == "app":
+        return "app"
+    if rota == "dados":
+        return "dados"
+    if rota == "analise_completa":
+        return "analise_completa"
+    return "end"
 
-    # Salvando a memória do chat no MongoDB
-    set_history(cod_usuario, store[cod_usuario])
+def decide_after_specialist(state: dict) -> str:
+    if state.get("erro"):
+        return "end"
+    return "orquestrador"
 
-    return resposta_final
+def decide_after_orquestrador(state: dict) -> str:
+    if state.get("erro"):
+        return "end"
+    return "juiz"
+
+# ---------------------------------------------------------
+# Construção do grafo
+grafo = StateGraph(dict)
+
+# Criação dos nós
+grafo.add_node("guardrail", guardrail_node)
+grafo.add_node("roteador", roteador_node)
+grafo.add_node("engenharia", engenharia_node)
+grafo.add_node("app", app_node)
+grafo.add_node("dados", dados_node)
+grafo.add_node("analise_completa", analise_completa_node)
+grafo.add_node("orquestrador", orquestrador_node)
+grafo.add_node("juiz", juiz_node)
+
+# Construção das arestas
+grafo.add_edge(START, "guardrail") # inicial
+
+# Rota do guardrail
+grafo.add_conditional_edges(
+    "guardrail",
+    decide_after_guardrail,
+    {"roteador": "roteador","end": END,},
+)
+
+# Decidindo a rota que vai seguir
+grafo.add_conditional_edges(
+    "roteador",
+    decide_after_router,
+    {
+        "engenharia": "engenharia",
+        "app": "app",
+        "dados": "dados",
+        "analise_completa": "analise_completa",
+        "end": END,
+    },
+)
+
+# Rotas pós nós especialistas
+grafo.add_conditional_edges(
+    "engenharia",
+    decide_after_specialist,
+    {"orquestrador": "orquestrador", "end": END},
+)
+grafo.add_conditional_edges(
+    "app",
+    decide_after_specialist,
+    {"orquestrador": "orquestrador", "end": END},
+)
+grafo.add_conditional_edges(
+    "dados",
+    decide_after_specialist,
+    {"orquestrador": "orquestrador", "end": END},
+)
+grafo.add_conditional_edges(
+    "analise_completa",
+    decide_after_specialist,
+    {"orquestrador": "orquestrador", "end": END},
+)
+
+# Rota pós orquestrador
+grafo.add_conditional_edges(
+    "orquestrador",
+    decide_after_orquestrador,
+    {"juiz": "juiz", "end": END},
+)
+
+
+grafo.add_edge("juiz", END) # Fim
+
+app = grafo.compile() # Fluxo completo compilado
+
+
+def executar_fluxo_tria(pergunta_usuario: str, session_id: int) -> str:
+    final_state = app.invoke({"input": pergunta_usuario, "session_id": session_id})
+    print(memory_store)
+    set_history(session_id, memory_store[session_id])
+    if final_state.get("erro"):
+        return f"Erro: {final_state['erro']}"
+    return final_state.get("resposta_usuario", "Não foi possível responder.") # isso é um if não tiver resposta_usuario, mostre a "não foi possivel..."
 
 
 def Tria(pergunta_usuario, cod_usuario):
     try:
-        return processa_pergunta(pergunta_usuario, cod_usuario)
+        return executar_fluxo_tria(pergunta_usuario, cod_usuario)
     except Exception as e:
         print("Ocorreu um erro ao consumir a API: ", e)
 
@@ -1099,7 +1254,7 @@ def Tria(pergunta_usuario, cod_usuario):
             raise Exception(f"Ocorreu um erro ao consumir a API: {e}")
 
         try: 
-            return processa_pergunta(pergunta_usuario, cod_usuario)
+            return executar_fluxo_tria(pergunta_usuario, cod_usuario)
         except Exception as ex:
             raise Exception(f"O limite diário da API do gemini foi ultrapassado ou ocorreu outro erro: {ex}")
 
