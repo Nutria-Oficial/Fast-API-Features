@@ -76,7 +76,7 @@ def set_history(nCdUsuario:int, history:ChatMessageHistory, iChat:int=1 ):
         conteudo = str(memo["content"])
         if (memo["type"] == "human"):
             # Regra para adicionar quando for apenas texto
-            if ((not conteudo.startswith("{\"routes\":")) and (not "\"dominio\":" in conteudo)):
+            if ((not conteudo.startswith("{\"route\":")) and (not "\"dominio\":" in conteudo)):
                 lUser.append(conteudo)
         elif (memo["type"] == "ai"):
             # Regra para evitar as memórias das conversas entre os agentes
