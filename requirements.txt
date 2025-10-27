@@ -6,10 +6,10 @@ pandas
 pymongo
 valkey
 urllib3
-langchain
-google-genai
-langchain_google_genai
+langchain==0.3.27
+google-genai==1.43.0
+langchain_google_genai==2.0.10
 google.generativeai==0.8.5
-langchain-community
+langchain-community==0.3.31
 pillow
 python-multipart
