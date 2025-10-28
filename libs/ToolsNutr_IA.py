@@ -73,14 +73,15 @@ def set_history(nCdUsuario:int, history:ChatMessageHistory, iChat:int=1 ):
     lBot = []
 
     for memo in lMemoria:
+        # print(f"\n\nMemo: {memo}")
         conteudo = str(memo["content"])
         if (memo["type"] == "human"):
             # Regra para adicionar quando for apenas texto
-            if ((not conteudo.startswith("{\"route\":")) and (not "\"dominio\":" in conteudo)):
+            if ((not conteudo.startswith("{\"route\":")) and (not "\"dominio\":" in conteudo) and (not conteudo.startswith("{\"legal\":")) and (not conteudo.startswith("{\"pergunta_original\":"))):
                 lUser.append(conteudo)
         elif (memo["type"] == "ai"):
             # Regra para evitar as memórias das conversas entre os agentes
-            if (not "\"dominio\":" in conteudo and (not "\"resposta_small_talk\":null" in conteudo)):
+            if (not "\"dominio\":" in conteudo and (not "\"resposta_small_talk\":null" in conteudo) and (not conteudo.startswith("{\"legal\":")) and (not "\"route\":" in conteudo)):
                 # Verificando se é small talk ou orquestrador
                 if ("\"resposta_small_talk\":" in conteudo):
                     resposta_json = json.loads(conteudo)
