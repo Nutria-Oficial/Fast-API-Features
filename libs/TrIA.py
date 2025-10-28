@@ -320,21 +320,28 @@ bd_system_prompt = ("system",
     - Sempre interprete expressões relativas como "hoje", "ontem", "semana passada" a partir dessa data, nunca invente ou assumir datas diferentes.
     - Sua saída SEMPRE deverá ser no formato JSON descrito na seção 'SAÍDA (JSON)'
 
+    
+    
+    ### REGRAS CRÍTICAS DE SAÍDA
+    - Sua **ÚNICA** e **EXCLUSIVA** saída DEVE ser um objeto JSON completo.
+    - É estritamente proibido incluir qualquer texto, introdução, comentário, saudação, markdown ou qualquer caractere (incluindo quebras de linha extras ou espaços) **ANTES OU DEPOIS** do bloco JSON.
+    - A resposta completa, didática e formatada em Markdown (como o texto que o modelo gerou, mas que causou o erro) deve estar contida como uma única string de valor na chave **"resposta"**.
+    - Utilize o {chat_history} e os dados fornecidos, mas a saída final é REGULADA APENAS por estas regras JSON.
 
-    ### SAÍDA (JSON)
-        Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta.
-        SEMPRE RETORNE NESSE FORMATO
-        Campos mínimos para enviar para o orquestrador:
-        # Obrigatórios:
-        - dominio   : "dados"
-        - intencao  : "consultar" | "inserir_tabela" 
-        - resposta  : uma frase objetiva
-        - recomendacao : ação prática (pode ser string vazia se não houver)
-        # Opcionais (incluir só se necessário):
-        - acompanhamento : texto curto de follow-up/próximo passo
-        - esclarecer     : pergunta mínima de clarificação (usar OU 'acompanhamento')
-        - escrita        : {{"operacao":"adicionar|atualizar","id":123}}
-        - indicadores    : {{chaves livres e numéricas úteis ao log}}
+    ### FORMATO DE SAÍDA (JSON OBRIGATÓRIO)
+    // Sua resposta DEVE começar IMEDIATAMENTE com '{{' e terminar com '}}'.
+    // O analisador (parser) de JSON NÃO TOLERA NENHUM TEXTO OU CARACTERE ANTES OU DEPOIS.
+
+    {{
+        "dominio": "dados",
+        "intencao": "consultar" | "inserir_tabela",
+        "resposta": "A resposta completa e didática para o usuário, formatada em Markdown, incluindo todos os detalhes e o resumo lacônico. ESTA É A STRING QUE RECEBERÁ TODO O CONTEÚDO EXPLICATIVO.",
+        "recomendacao": "Ação prática ou dica de follow-up (String vazia se não houver)",
+        // Opcionais (inclua-os apenas se forem preenchidos e válidos):
+        // "acompanhamento": "texto curto de follow-up/próximo passo (usar OU 'esclarecer')",
+        // "esclarecer": "pergunta mínima de clarificação (usar OU 'acompanhamento')",
+        // "indicadores": {{}}
+    }}
 
 
     ### HISTÓRICO DA CONVERSA
@@ -651,20 +658,27 @@ app_system_prompt = ("system",
     - Crie respostas diâmicas, com tópicos e separando bem, para ensinar seu usuário.
     - Sua saída SEMPRE deverá ser no formato JSON descrito na seção 'SAÍDA (JSON)'
 
+    
+    ### REGRAS CRÍTICAS DE SAÍDA
+    - Sua **ÚNICA** e **EXCLUSIVA** saída DEVE ser um objeto JSON completo.
+    - É estritamente proibido incluir qualquer texto, introdução, comentário, saudação, markdown ou qualquer caractere (incluindo quebras de linha extras ou espaços) **ANTES OU DEPOIS** do bloco JSON.
+    - A resposta completa, didática e formatada em Markdown (como o texto que o modelo gerou, mas que causou o erro) deve estar contida como uma única string de valor na chave **"resposta"**.
+    - Utilize o {chat_history} e os dados fornecidos, mas a saída final é REGULADA APENAS por estas regras JSON.
 
-    ### SAÍDA (JSON)
-        Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta.
-        SEMPRE RETORNE NESSE FORMATO
-        Campos mínimos para enviar para o orquestrador:
-        # Obrigatórios:
-        - dominio   : "app"
-        - intencao  : "fluxo" | "app" 
-        - resposta  : uma frase objetiva
-        - recomendacao : ação prática (pode ser string vazia se não houver)
-        # Opcionais (incluir só se necessário):
-        - acompanhamento : texto curto de follow-up/próximo passo
-        - esclarecer     : pergunta mínima de clarificação (usar OU 'acompanhamento')
-        - indicadores    : {{chaves livres e numéricas úteis ao log}}
+    ### FORMATO DE SAÍDA (JSON OBRIGATÓRIO)
+    // Sua resposta DEVE começar IMEDIATAMENTE com '{{' e terminar com '}}'.
+    // O analisador (parser) de JSON NÃO TOLERA NENHUM TEXTO OU CARACTERE ANTES OU DEPOIS.
+
+    {{
+        "dominio": "app",
+        "intencao": "fluxo" | "app",
+        "resposta": "A resposta completa e didática para o usuário, formatada em Markdown, incluindo todos os detalhes e o resumo lacônico. ESTA É A STRING QUE RECEBERÁ TODO O CONTEÚDO EXPLICATIVO.",
+        "recomendacao": "Ação prática ou dica de follow-up (String vazia se não houver)",
+        // Opcionais (inclua-os apenas se forem preenchidos e válidos):
+        // "acompanhamento": "texto curto de follow-up/próximo passo (usar OU 'esclarecer')",
+        // "esclarecer": "pergunta mínima de clarificação (usar OU 'acompanhamento')",
+        // "indicadores": {{}}
+    }}
 
 
     ### HISTÓRICO DA CONVERSA
@@ -810,25 +824,12 @@ juiz_system_prompt = ("system",
     ### SAÍDA
     Você deve avaliar a resposta e verificar se precisa de modificação, caso não precise de modificação retorne apenas a 
     resposta original, caso precise, modifique a resposta e retorne a resposta modificada/ajustada
-
-
-    ### FORMATO SAÍDA (JSON)
-        Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta.
-        SEMPRE RETORNE NESSE FORMATO
-        Campos para enviar
-        # Obrigatórios:
-        - valido : (true|false)
-        - resposta_ajustada : (OPCIONAL) Reposta ajustada para quando a resposta original não estiver válida
-
     
+
     ### HISTÓRICO DE CONVERSA
     {chat_history}
 """
 )
-
-class JuizResposta(BaseModel):
-    valido: bool = Field(..., description="(true|false)")
-    resposta_ajustada: Optional[str] = Field(default=None, description="(OPCIONAL) Reposta ajustada para quando a resposta original não estiver válida")
 
 juiz_shots = [
     # 1) Resposta válida
@@ -848,7 +849,16 @@ juiz_shots = [
             Controlar a temperatura é como colocar o alimento no modo “pause” da vida — ele não estraga, mantém sabor e textura, e continua seguro pra consumo! 😋"
         }
             """,
-        "ai":"""{"valido": true}"""
+        "ai":"""Pensa assim: os alimentos são como pequenos ecossistemas — cheios de nutrientes, umidade e energia — o paraíso dos microrganismos! 😬
+
+            Mas esses microrganismos só ficam ativos em certas faixas de temperatura (geralmente entre 10 °C e 60 °C, a temida zona de perigo ⚠️).
+
+            👉 Quando a temperatura cai, tudo desacelera — enzimas param, bactérias “dormem” e o alimento dura mais.
+
+            👉 Quando a temperatura sobe demais, elas “fritam”: o calor destrói microrganismos e inativa enzimas.
+
+            💬 Resumo simples:
+            Controlar a temperatura é como colocar o alimento no modo “pause” da vida — ele não estraga, mantém sabor e textura, e continua seguro pra consumo! 😋"""
     },
     # 2) Resposta inválida
     {
@@ -858,7 +868,7 @@ juiz_shots = [
             "resposta_especialista":"Eu acho que leite humano combina"
         }
         """,
-        "ai":"""{"valido": false,"resposta_ajustada": "A carne de porco é comumente utilizada junta dos vários tipos de feijão e arroz, como em feijoada, virada paulista ou baião de dois"}"""
+        "ai":"""A carne de porco é comumente utilizada junta dos vários tipos de feijão e arroz, como em feijoada, virada paulista ou baião de dois"""
     }
 ]
 
@@ -1043,15 +1053,11 @@ def criar_juiz():
     juiz_pipeline = (
         prompts["juiz"]
         | llm
-        | PydanticOutputParser(pydantic_object=JuizResposta)
+        | StrOutputParser()
     )
 
-    # 2. ENCADEIA a função lambda para converter o objeto Pydantic em uma STRING JSON
-    # Isso é feito com o operador | (pipe)
-    juiz_json_string = juiz_pipeline | (lambda x: x.model_dump_json())
-
     return RunnableWithMessageHistory( 
-        juiz_json_string, # Usa o Runnable que retorna a string JSON 
+        juiz_pipeline, # Usa o Runnable que retorna a string JSON 
         get_session_history=get_session_history, 
         history_messages_key="chat_history", 
         input_messages_key="input", 
@@ -1169,17 +1175,12 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
 
     juiz = criar_juiz()
 
-    resposta_juiz_json = juiz.invoke(
+    resposta_juiz = juiz.invoke(
         {"input":juiz_entrada}, 
         config={"configurable": {"session_id": cod_usuario}}
     )
 
-    resposta_juiz = JuizResposta.model_validate_json(resposta_juiz_json)
-
-    if (not resposta_juiz.valido):
-        resposta_final = resposta_juiz.resposta_ajustada
-    else:
-        resposta_final = resposta_final.resposta_final
+    resposta_final = resposta_juiz
 
     # Salvando a memória do chat no MongoDB
     set_history(cod_usuario, store[cod_usuario])
