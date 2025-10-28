@@ -808,13 +808,27 @@ juiz_system_prompt = ("system",
 
     
     ### SAÍDA
-    Você deve avaliar a resposta e verificar se precisa de modificação, caso não precise de modificação retorne apenas a resposta original, caso precise, modifique a resposta e retorne a resposta modificada/ajustada
+    Você deve avaliar a resposta e verificar se precisa de modificação, caso não precise de modificação retorne apenas a 
+    resposta original, caso precise, modifique a resposta e retorne a resposta modificada/ajustada
+
+
+    ### FORMATO SAÍDA (JSON)
+        Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta.
+        SEMPRE RETORNE NESSE FORMATO
+        Campos para enviar
+        # Obrigatórios:
+        - valido : (true|false)
+        - resposta_ajustada : (OPCIONAL) Reposta ajustada para quando a resposta original não estiver válida
 
     
     ### HISTÓRICO DE CONVERSA
     {chat_history}
 """
 )
+
+class JuizResposta(BaseModel):
+    valido: bool = Field(..., description="(true|false)")
+    resposta_ajustada: Optional[str] = Field(default=None, description="(OPCIONAL) Reposta ajustada para quando a resposta original não estiver válida")
 
 juiz_shots = [
     # 1) Resposta válida
@@ -834,11 +848,7 @@ juiz_shots = [
             Controlar a temperatura é como colocar o alimento no modo “pause” da vida — ele não estraga, mantém sabor e textura, e continua seguro pra consumo! 😋"
         }
             """,
-        "ai":"""
-        {
-            "valido": True
-        }
-            """
+        "ai":"""{"valido": true}"""
     },
     # 2) Resposta inválida
     {
@@ -848,12 +858,7 @@ juiz_shots = [
             "resposta_especialista":"Eu acho que leite humano combina"
         }
         """,
-        "ai":"""
-        {
-            "valido": False,
-            "resposta_ajustada": "A carne de porco é comumente utilizada junta dos vários tipos de feijão e arroz, como em feijoada, virada paulista ou baião de dois"
-        }
-        """
+        "ai":"""{"valido": false,"resposta_ajustada": "A carne de porco é comumente utilizada junta dos vários tipos de feijão e arroz, como em feijoada, virada paulista ou baião de dois"}"""
     }
 ]
 
@@ -1019,7 +1024,7 @@ def criar_app_agent():
 def criar_orquestrador():
     orquestrador_pipeline = (
         prompts["orquestrador"]
-        | llm
+        | llm_fast
         | PydanticOutputParser(pydantic_object=OrquestradorResposta)
     )
 
@@ -1036,16 +1041,21 @@ def criar_orquestrador():
 
 def criar_juiz():
     juiz_pipeline = (
-        prompts["juiz"] 
-        | llm 
-        | StrOutputParser()
+        prompts["juiz"]
+        | llm
+        | PydanticOutputParser(pydantic_object=JuizResposta)
     )
 
-    return RunnableWithMessageHistory(
-        juiz_pipeline, # Usa o Runnable que retorna a string JSON
-        get_session_history=get_session_history,
-        history_messages_key="chat_history",
-        input_messages_key="input", handle_parsing_errors=False)
+    # 2. ENCADEIA a função lambda para converter o objeto Pydantic em uma STRING JSON
+    # Isso é feito com o operador | (pipe)
+    juiz_json_string = juiz_pipeline | (lambda x: x.model_dump_json())
+
+    return RunnableWithMessageHistory( 
+        juiz_json_string, # Usa o Runnable que retorna a string JSON 
+        get_session_history=get_session_history, 
+        history_messages_key="chat_history", 
+        input_messages_key="input", 
+        handle_parsing_errors=False)
 
 def criar_especialista(especialista:str):
     if especialista == "dados":
@@ -1164,7 +1174,12 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
         config={"configurable": {"session_id": cod_usuario}}
     )
 
-    resposta_final = resposta_juiz_json   
+    resposta_juiz = JuizResposta.model_validate_json(resposta_juiz_json)
+
+    if (not resposta_juiz.valido):
+        resposta_final = resposta_juiz.resposta_ajustada
+    else:
+        resposta_final = resposta_final.resposta_final
 
     # Salvando a memória do chat no MongoDB
     set_history(cod_usuario, store[cod_usuario])
