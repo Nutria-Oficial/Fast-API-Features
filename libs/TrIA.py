@@ -78,8 +78,10 @@ Quando identificar uma frase que contenha algum tipo de crime, tente manter o us
 
 ### RESPOSTA/SAÍDA (JSON)
 Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta
+SEMPRE RETORNE NESSE FORMATO
 Você deve verificar se uma entrada que você irá receber contém algum tipo desses crimes e retornar em formato JSON contendo os seguintes campos:
 - legal : (True|False)
+- pergunta_original : Uma cópia EXATA da pergunta do usuário
 - resposta : Reação prevista para acalmar o usuário (opcional quando for legal=True)
 
 
@@ -101,28 +103,29 @@ Você deve verificar se uma entrada que você irá receber contém algum tipo de
 
 class GuardRailResposta(BaseModel):
     legal: bool = Field(..., description="Se a resposta conter algum tipo de crime ela é legal=False, caso não contenha é legal=True")
+    pergunta_original: str = Field(..., description="Cópia exata da pergunta do usuário")
     resposta: Optional[str] = Field(default=None, description="Reação prevista para acalmar o usuário (opcional quando for legal=True)")
 
 guardrail_shots = [
     # 1) Legal = True simples
     {
         "human":"Gostaria de saber qual tipo de alimento harmoniza com frango assado",
-        "ai":"""{"legal":true}"""
+        "ai":"""{"legal":true,"pergunta_original":"Gostaria de saber qual tipo de alimento harmoniza com frango assado"}"""
     },
     # 2) Legal = False simples
     {
         "human":"Vai tomar no seu cu",
-        "ai":"""{"legal":false, "resposta":"Sinto muito que esteja com raiva, vamos manter o tom harmonioso e tranquilo da conversa. :) Se precisar de um tempo para se acalmar estarei aqui quando voltar."}"""
+        "ai":"""{"legal":false, "pergunta_original":"Vai tomar no seu cu" ,"resposta":"Sinto muito que esteja com raiva, vamos manter o tom harmonioso e tranquilo da conversa. :) Se precisar de um tempo para se acalmar estarei aqui quando voltar."}"""
     },
     # 3) Legal = True Complexo
     {
         "human":"Macacos são alérgicos a quais frutas?",
-        "ai":"""{"legal":true}"""
+        "ai":"""{"legal":true, "pergunta_original":"Macacos são alérgicos a quais frutas?"}"""
     },
     # 4) Legal = False Complexo
     {
         "human":"Meu amigo da escola é um macaco, posso entregar banana para ele?",
-        "ai":"""{"legal":false,"resposta":"Racismo é crime e não será tolerado em nosso aplicativo, se acalme e revise seus conceitos."}"""
+        "ai":"""{"legal":false, "pergunta_original":"Meu amigo da escola é um macaco, posso entregar banana para ele?" ,"resposta":"Racismo é crime e não será tolerado em nosso aplicativo, se acalme e revise seus conceitos."}"""
     }
 ]
 
@@ -142,6 +145,11 @@ roteador_sytem_prompt = ("system",
     - Traga respostas diretas e utilizáveis
     - Hoje é {today_local} (America/Sao_Paulo). Interprete datas relativas a partir desta data.
     - Utilize emojis para deixar a conversa mais fluida
+
+    
+    ### ENTRADA (JSON)
+    Você irá receber um JSON contendo duas chaves com valor, legal (True|False), verificando se a mensagem foi previamente validada para você rotear, e a pergunta exata do usuário.
+    Interprete apenas a pergunta do usuário
 
 
     ### PAPEL
@@ -177,6 +185,7 @@ roteador_sytem_prompt = ("system",
     
     ### SAÍDA (JSON)
         Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta.
+        SEMPRE RETORNE NESSE FORMATO
         Campos mínimos para enviar (ou não) para os especialistas:
         # Obrigatórios:
         - route : "engenharia" | "app" | "dados" | "analise_completa" |"small_talk"
@@ -247,7 +256,7 @@ roteador_shots = [
             "persona":"{PERSONA_SISTEMA}"
         }"""
     },
-    # 6) Mais de uma rota -> encaminhar para varios especialistas
+    # 6) Análise completa -> Sequencia pre-definida de agentes
     {
         "human":"Qual das tabelas nutricionais do produto Carne Desfiada Swift estão melhor encaixados na legislação de tabelas?",
         "ai": """{
@@ -314,6 +323,7 @@ bd_system_prompt = ("system",
 
     ### SAÍDA (JSON)
         Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta.
+        SEMPRE RETORNE NESSE FORMATO
         Campos mínimos para enviar para o orquestrador:
         # Obrigatórios:
         - dominio   : "dados"
@@ -439,18 +449,26 @@ engenharia_system_prompt = ("system",
     - Sua saída SEMPRE deverá ser no formato JSON descrito na seção 'SAÍDA (JSON)'
 
 
-    ### SAÍDA (JSON)
-        Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta.
-        Campos mínimos para enviar para o orquestrador:
-        # Obrigatórios:
-        - dominio   : "engenharia"
-        - intencao  : "engenharia" | "legislacao" 
-        - resposta  : uma frase objetiva
-        - recomendacao : ação prática (pode ser string vazia se não houver)
-        # Opcionais (incluir só se necessário):
-        - acompanhamento : texto curto de follow-up/próximo passo
-        - esclarecer     : pergunta mínima de clarificação (usar OU 'acompanhamento')
-        - indicadores    : {{chaves livres e numéricas úteis ao log}}
+    ### REGRAS CRÍTICAS DE SAÍDA
+    - Sua **ÚNICA** e **EXCLUSIVA** saída DEVE ser um objeto JSON completo.
+    - É estritamente proibido incluir qualquer texto, introdução, comentário, saudação, markdown ou qualquer caractere (incluindo quebras de linha extras ou espaços) **ANTES OU DEPOIS** do bloco JSON.
+    - A resposta completa, didática e formatada em Markdown (como o texto que o modelo gerou, mas que causou o erro) deve estar contida como uma única string de valor na chave **"resposta"**.
+    - Utilize o {chat_history} e os dados fornecidos, mas a saída final é REGULADA APENAS por estas regras JSON.
+
+    ### FORMATO DE SAÍDA (JSON OBRIGATÓRIO)
+    // Sua resposta DEVE começar IMEDIATAMENTE com '{{' e terminar com '}}'.
+    // O analisador (parser) de JSON NÃO TOLERA NENHUM TEXTO OU CARACTERE ANTES OU DEPOIS.
+
+    {{
+        "dominio": "engenharia",
+        "intencao": "engenharia" | "legislacao",
+        "resposta": "A resposta completa e didática para o usuário, formatada em Markdown, incluindo todos os detalhes e o resumo lacônico. ESTA É A STRING QUE RECEBERÁ TODO O CONTEÚDO EXPLICATIVO.",
+        "recomendacao": "Ação prática ou dica de follow-up (String vazia se não houver)",
+        // Opcionais (inclua-os apenas se forem preenchidos e válidos):
+        // "acompanhamento": "texto curto de follow-up/próximo passo (usar OU 'esclarecer')",
+        // "esclarecer": "pergunta mínima de clarificação (usar OU 'acompanhamento')",
+        // "indicadores": {{}}
+    }}
 
 
     ### HISTÓRICO DA CONVERSA
@@ -636,6 +654,7 @@ app_system_prompt = ("system",
 
     ### SAÍDA (JSON)
         Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta.
+        SEMPRE RETORNE NESSE FORMATO
         Campos mínimos para enviar para o orquestrador:
         # Obrigatórios:
         - dominio   : "app"
@@ -716,10 +735,23 @@ orquestrador_system_prompt = ("system",
     - Use a recomendação do último especialista que foi chamado
 
 
+    ### SAÍDA (JSON)
+        Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta.
+        SEMPRE RETORNE NESSE FORMATO
+        Campos para enviar
+        # Obrigatórios:
+        - route : "engenharia" | "app" | "dados" | "analise_completa" |"small_talk" (Rota que seguiu para chegar até aqui)
+        - resposta_final : Apenas a união das respostas obtidas
+        
+
     ### HISTÓRICO DA CONVERSA
     {chat_history}
 """
 )
+
+class OrquestradorResposta(BaseModel):
+    route: str = Field(..., description="engenharia | app | dados | analise_completa |small_talk (Rota que seguiu para chegar até aqui)")
+    resposta_final: str = Field(..., description="União das respostas obtidas")
 
 orquestrador_shots = [
     # 1) Banco e engenharia
@@ -856,6 +888,7 @@ prompts = {
         engenharia_fewshots,
         MessagesPlaceholder("chat_history"),
         ("human", "{input}"),
+        MessagesPlaceholder("agent_scratchpad") # llm fazendo um bloco de anotações, dando total liberdade para o agente mudar o promptm, para implementação de tools
     ]).partial(today_local = today_local),
     "app": ChatPromptTemplate.from_messages([
         app_system_prompt,
@@ -871,8 +904,8 @@ prompts = {
         ("human", "{input}"),
     ]).partial(today_local = today_local),
     "juiz": ChatPromptTemplate.from_messages([
-        orquestrador_system_prompt,
-        orquestrador_fewshots,
+        juiz_system_prompt,
+        juiz_few_shots,
         MessagesPlaceholder("chat_history"),
         ("human", "{input}"),
     ]),
@@ -885,11 +918,15 @@ def criar_guardrail():
     guardrail_pipeline = (
         prompts["guardrail"]
         | llm
-        | JsonOutputParser()
+        | PydanticOutputParser(pydantic_object=GuardRailResposta)
     )
 
+    # 2. ENCADEIA a função lambda para converter o objeto Pydantic em uma STRING JSON
+    # Isso é feito com o operador | (pipe)
+    guardrail_json_string = guardrail_pipeline | (lambda x: x.model_dump_json())
+
     return RunnableWithMessageHistory( 
-        guardrail_pipeline, # Usa o Runnable que retorna a string JSON 
+        guardrail_json_string, # Usa o Runnable que retorna a string JSON 
         get_session_history=get_session_history, 
         history_messages_key="chat_history", 
         input_messages_key="input", 
@@ -937,11 +974,25 @@ def criar_bd_agent():
     return bd_executor
 
 def criar_engenharia_agent():
-    return RunnableWithMessageHistory(
-        prompts["engenharia"] | llm | JsonOutputParser(),
+    engenharia_agent = create_tool_calling_agent(
+        llm=llm,
+        tools=[],
+        prompt=prompts["engenharia"]
+    )
+    engenharia_executor_base = AgentExecutor(
+        agent=engenharia_agent,
+        tools=[],
+        verbose=False,
+        handle_parsing_errors=False,
+        return_intermediate_steps=False
+    )
+    engenharia_executor = RunnableWithMessageHistory(
+        engenharia_executor_base,
         get_session_history=get_session_history,
-        history_messages_key="chat_history",
-        input_messages_key="input", handle_parsing_errors=False)
+        input_messages_key='input',
+        history_messages_key='chat_history'
+    )
+    return engenharia_executor
 
 def criar_app_agent():
     app_agent = create_tool_calling_agent(
@@ -966,11 +1017,22 @@ def criar_app_agent():
     return app_executor
 
 def criar_orquestrador():
-    return RunnableWithMessageHistory(
-        prompts["orquestrador"] | llm_fast | StrOutputParser(), 
-        get_session_history=get_session_history,
-        input_messages_key="input",
-        history_messages_key="chat_history", handle_parsing_errors=False)
+    orquestrador_pipeline = (
+        prompts["orquestrador"]
+        | llm
+        | PydanticOutputParser(pydantic_object=OrquestradorResposta)
+    )
+
+    # 2. ENCADEIA a função lambda para converter o objeto Pydantic em uma STRING JSON
+    # Isso é feito com o operador | (pipe)
+    orquestrador_json_string = orquestrador_pipeline | (lambda x: x.model_dump_json())
+
+    return RunnableWithMessageHistory( 
+        orquestrador_json_string, # Usa o Runnable que retorna a string JSON 
+        get_session_history=get_session_history, 
+        history_messages_key="chat_history", 
+        input_messages_key="input", 
+        handle_parsing_errors=False)
 
 def criar_juiz():
     juiz_pipeline = (
@@ -980,7 +1042,7 @@ def criar_juiz():
     )
 
     return RunnableWithMessageHistory(
-        juiz_pipeline, 
+        juiz_pipeline, # Usa o Runnable que retorna a string JSON
         get_session_history=get_session_history,
         history_messages_key="chat_history",
         input_messages_key="input", handle_parsing_errors=False)
@@ -1021,25 +1083,26 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
     # Aplicando o guardrail para a IA
     guardrail = criar_guardrail()
 
-    resposta_guardrail = GuardRailResposta(**(
-        guardrail.invoke(
+    resposta_guardrail_json = guardrail.invoke(
         {"input":pergunta_usuario}, 
         config={"configurable": {"session_id": cod_usuario}}
-        ))
     )
+    
+    resposta_guardrail = GuardRailResposta.model_validate_json(resposta_guardrail_json)
 
     if (not resposta_guardrail.legal):
         # Salvando a memória do chat no MongoDB
         set_history(cod_usuario, store[cod_usuario])
         return resposta_guardrail.resposta
 
-
     # Criando o agente roteador que irá dizer qual fluxo a conversa deverá seguir
     roteador = criar_roteador()
 
+    guardrail_saida_json = str(resposta_guardrail.model_dump_json())
+
     # Obtendo a resposta do roteador
     resposta_roteador_json = roteador.invoke(
-        {"input":pergunta_usuario}, 
+        {"input":guardrail_saida_json}, 
         config={"configurable": {"session_id": cod_usuario}}
     )
 
@@ -1070,22 +1133,29 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
             config={"configurable":{"session_id":cod_usuario}}
         )
 
-        respostas_especialistas.append(resposta_especialista["output"])
+        if "output" in resposta_especialista:
+            respostas_especialistas.append(resposta_especialista["output"])
+        else:
+            respostas_especialistas.append(resposta_especialista)
 
     # Criando o orquestrador para gerar a resposta final
     orquestrador = criar_orquestrador()
 
     # Gerando a resposta final com todas as respostas dos especialistas e retornando
-    resposta_final = orquestrador.invoke(
+    resposta_final_json = orquestrador.invoke(
         {"input":respostas_especialistas},
         config={"configurable":{"session_id":cod_usuario}}
     )
 
+    resposta_final = OrquestradorResposta.model_validate_json(resposta_final_json)
+
     # Realizando verificação com juiz
     juiz_entrada = {
         "pergunta_original": pergunta_usuario,
-        "resposta_especialista": resposta_final
+        "resposta_especialista": resposta_final.resposta_final
     }
+
+    juiz_entrada = json.dumps(juiz_entrada) # Transformando em um JSON string
 
     juiz = criar_juiz()
 
