@@ -1,5 +1,6 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from libs.TableCreator import criar_tabela_nutricional
 from libs.TrIA import Tria
 from libs.AutomaticEmbedding import criar_embedding
@@ -9,6 +10,22 @@ from PIL import Image
 import io
 
 api = FastAPI()
+
+# Defina as origens permitidas
+origins = [
+    "http://localhost",
+    "http://localhost:5173",  # Adicione o seu frontend local
+    # Se você tiver um domínio de produção, adicione-o aqui também
+    # "https://seudominiofrontend.com"
+]
+
+api.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,              # Lista de origens permitidas
+    allow_credentials=True,             # Permite cookies/credenciais
+    allow_methods=["*"],                # Permite todos os métodos (GET, POST, etc.)
+    allow_headers=["*"],                # Permite todos os cabeçalhos
+)
 
 @api.get("/")
 async def index():
