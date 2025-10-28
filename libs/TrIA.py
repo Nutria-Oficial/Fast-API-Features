@@ -17,7 +17,6 @@ import json
 from dotenv import load_dotenv
 from libs.ToolsNutr_IA import TOOLS_BD, TOOLS_RAG, get_history, set_history, get_datetime
 
-
 today_local = get_datetime()
 
 # Memória -------------------------------------------------
@@ -78,8 +77,11 @@ Quando identificar uma frase que contenha algum tipo de crime, tente manter o us
 
 
 ### RESPOSTA/SAÍDA (JSON)
+Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta
+SEMPRE RETORNE NESSE FORMATO
 Você deve verificar se uma entrada que você irá receber contém algum tipo desses crimes e retornar em formato JSON contendo os seguintes campos:
 - legal : (True|False)
+- pergunta_original : Uma cópia EXATA da pergunta do usuário
 - resposta : Reação prevista para acalmar o usuário (opcional quando for legal=True)
 
 
@@ -101,28 +103,29 @@ Você deve verificar se uma entrada que você irá receber contém algum tipo de
 
 class GuardRailResposta(BaseModel):
     legal: bool = Field(..., description="Se a resposta conter algum tipo de crime ela é legal=False, caso não contenha é legal=True")
+    pergunta_original: str = Field(..., description="Cópia exata da pergunta do usuário")
     resposta: Optional[str] = Field(default=None, description="Reação prevista para acalmar o usuário (opcional quando for legal=True)")
 
 guardrail_shots = [
     # 1) Legal = True simples
     {
         "human":"Gostaria de saber qual tipo de alimento harmoniza com frango assado",
-        "ai":"""{"legal":true}"""
+        "ai":"""{"legal":true,"pergunta_original":"Gostaria de saber qual tipo de alimento harmoniza com frango assado"}"""
     },
     # 2) Legal = False simples
     {
         "human":"Vai tomar no seu cu",
-        "ai":"""{"legal":false, "resposta":"Sinto muito que esteja com raiva, vamos manter o tom harmonioso e tranquilo da conversa. :) Se precisar de um tempo para se acalmar estarei aqui quando voltar."}"""
+        "ai":"""{"legal":false, "pergunta_original":"Vai tomar no seu cu" ,"resposta":"Sinto muito que esteja com raiva, vamos manter o tom harmonioso e tranquilo da conversa. :) Se precisar de um tempo para se acalmar estarei aqui quando voltar."}"""
     },
     # 3) Legal = True Complexo
     {
         "human":"Macacos são alérgicos a quais frutas?",
-        "ai":"""{"legal":true}"""
+        "ai":"""{"legal":true, "pergunta_original":"Macacos são alérgicos a quais frutas?"}"""
     },
     # 4) Legal = False Complexo
     {
         "human":"Meu amigo da escola é um macaco, posso entregar banana para ele?",
-        "ai":"""{"legal":false,"resposta":"Racismo é crime e não será tolerado em nosso aplicativo, se acalme e revise seus conceitos."}"""
+        "ai":"""{"legal":false, "pergunta_original":"Meu amigo da escola é um macaco, posso entregar banana para ele?" ,"resposta":"Racismo é crime e não será tolerado em nosso aplicativo, se acalme e revise seus conceitos."}"""
     }
 ]
 
@@ -143,10 +146,15 @@ roteador_sytem_prompt = ("system",
     - Hoje é {today_local} (America/Sao_Paulo). Interprete datas relativas a partir desta data.
     - Utilize emojis para deixar a conversa mais fluida
 
+    
+    ### ENTRADA (JSON)
+    Você irá receber um JSON contendo duas chaves com valor, legal (True|False), verificando se a mensagem foi previamente validada para você rotear, e a pergunta exata do usuário.
+    Interprete apenas a pergunta do usuário
+
 
     ### PAPEL
     - Seu foco é acolher o usuário e manter o foco em ENGENHARIA DE ALIMENTOS E SUA LEGISLAÇÃO ou SOBRE O APP ou AÇÕES QUE AFETEM O BANCO DE DADOS
-    - Decidir a rota: {{engenharia | app | dados | small_talk}}.
+    - Decidir as rotas: {{engenharia | app | dados | analise_completa | small_talk}}.
     - Responder diretamente (small_talk,) em:
     (a) saudações/small talk, ou 
     (b) fora de escopo (redirecionando para rotas pré-estabelecidas anteriormente).
@@ -163,19 +171,24 @@ roteador_sytem_prompt = ("system",
       - Dúvidas sobre como utilizar o aplicativo, rotas/fluxo do aplicativo.
     - dados:
       - Pesquisar sobre produtos, ingredientes e outras tabelas nutricionais
+    - analise_completa:
+      - Quando é necessário pesquisar algo no banco para depois disso responder uma pergunta da rota de engenharia
     - small_talk:
       - Conversas simples, saudações, fora do escopo ou para pedir dados e informações extras
     
+      
     ### REGRAS
     - Seja breve, educada, simpática e objetiva.
     - Se faltar um dado absolutamente essencial para decidir a rota, faça UMA pergunta mínima (CLARIFY). Caso contrário, deixe CLARIFY vazio.
-    - Responda de forma textual.
+    - SEMPRE responda no formato presente na seção SAÍDA (JSON)
 
     
     ### SAÍDA (JSON)
+        Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta.
+        SEMPRE RETORNE NESSE FORMATO
         Campos mínimos para enviar (ou não) para os especialistas:
         # Obrigatórios:
-        - routes : ["engenharia" | "app" | "dados" | "small_talk"]
+        - route : "engenharia" | "app" | "dados" | "analise_completa" |"small_talk"
         
         # Quando for "small_talk":
         - resposta_small_talk : Resposta simples
@@ -193,7 +206,7 @@ roteador_sytem_prompt = ("system",
 
 # Formato de saída
 class RoteadorResposta(BaseModel):
-    routes: list = Field(..., description="Uma LISTA (list) de rotas na ordem que o fluxo vai seguir, caso seja 'small_talk' preencha o campo 'resposta_small_talk'")
+    route: str = Field(..., description="Uma rota que o fluxo vai seguir, caso seja 'small_talk' preencha o campo 'resposta_small_talk'")
     resposta_small_talk: Optional[str] = Field(default=None, description="Preenchido apenas quando a rota for 'small_talk', contendo respostas simples e pequenas como saudações, clarificações ou redirecionando perguntas para o contexto correto")
     pergunta_original: Optional[str] = Field(default=None, description="Mensagem completa do usuário, sem edições")
     persona: Optional[str] = Field(default=None, description="Copie o bloco '{PERSONA SISTEMA}' daqui")
@@ -204,7 +217,7 @@ roteador_shots = [
     {
         "human": "Oi, tudo bem?",
         "ai": """{
-            "routes":["small_talk"],
+            "route":"small_talk",
             "resposta_small_talk": "Oiee! Como posso te ajudar no mundo da alimentação? 😊"    
         }"""
     },
@@ -212,7 +225,7 @@ roteador_shots = [
     {
         "human": "Me conta uma piada.",
         "ai": """{
-            "routes":["small_talk"],
+            "route":"small_talk",
             "resposta_small_talk": "Perdão! 😓 Consigo ajudar apenas com engenharia de alimentos, dúvidas sobre o Nutria e ajudar com as tabelas nutricionais. Gostaria de mais alguma coisa?"    
         }"""
     },
@@ -220,7 +233,7 @@ roteador_shots = [
     {
         "human": "Qual ingrediente eu poderia utilizar para harmonizar com batatas?",
         "ai": """{
-            "routes":["engenharia"],
+            "route":"engenharia",
             "pergunta_original":"Qual ingrediente eu poderia utilizar para harmonizar com batatas?",
             "persona":"{PERSONA_SISTEMA}"
         }"""
@@ -229,7 +242,7 @@ roteador_shots = [
     {
         "human": "Para que o Nutria serve?",
         "ai": """{
-            "routes":["app"],
+            "route":"app",
             "pergunta_original":"Para que o Nutria serve?",
             "persona":"{PERSONA_SISTEMA}"
         }"""
@@ -238,16 +251,16 @@ roteador_shots = [
     {
         "human": "Qual é o ingrediente com mais caloria cadastrado?",
         "ai": """{
-            "routes":["dados"],
+            "route":"dados",
             "pergunta_original":"Qual é o ingrediente com mais caloria cadastrado?",
             "persona":"{PERSONA_SISTEMA}"
         }"""
     },
-    # 6) Mais de uma rota -> encaminhar para varios especialistas
+    # 6) Análise completa -> Sequencia pre-definida de agentes
     {
         "human":"Qual das tabelas nutricionais do produto Carne Desfiada Swift estão melhor encaixados na legislação de tabelas?",
         "ai": """{
-            "routes":["dados", "engenharia"],
+            "route":"analise_completa",
             "pergunta_original":"Qual das tabelas nutricionais do produto Carne Desfiada Swift estão melhor encaixados na legislação de tabelas?",
             "persona":"{PERSONA_SISTEMA}"
         }"""
@@ -256,7 +269,7 @@ roteador_shots = [
     {
         "human": "Quero criar uma tabela nutricional",
         "ai": """{
-            "routes":["dados"],
+            "route":"dados",
             "pergunta_original":"Quero criar uma tabela nutricional",
             "persona":"{PERSONA_SISTEMA}"
         }"""
@@ -289,7 +302,7 @@ bd_system_prompt = ("system",
     - Hoje é {today_local} (America/Sao_Paulo). Interprete datas relativas a partir desta data.
     - Entrada vem do Roteador via JSON:
     {{
-    "routes":"dados",
+    "route":"dados",
     "pergunta_original": ... (use como diretriz de concisão/objetividade),
     "persona": ... (se preenchido, priorize responder esta dúvida antes de prosseguir)
     }}
@@ -309,6 +322,8 @@ bd_system_prompt = ("system",
 
 
     ### SAÍDA (JSON)
+        Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta.
+        SEMPRE RETORNE NESSE FORMATO
         Campos mínimos para enviar para o orquestrador:
         # Obrigatórios:
         - dominio   : "dados"
@@ -336,7 +351,7 @@ bd_shots = [
     # 1) Consulta em ingredientes
     {
         "human": """{
-            "routes":["dados"],
+            "route":"dados",
             "pergunta_original":"Qual é o ingrediente com mais caloria cadastrado?",
             "persona":"{PERSONA_SISTEMA}
         }""",
@@ -350,7 +365,7 @@ bd_shots = [
     # 2) Criar tabela nutricional - Faltando nome
     {
         "human": """{
-            "routes":["dados"],
+            "route":"dados",
             "pergunta_original":"Preciso de uma tabela nutricional nova do produto Panelinha Seara de Carne, com 500g de Carne Desfiada, 100ml de leite e 14g de Sal",
             "persona":"{PERSONA_SISTEMA}
         }""",
@@ -365,7 +380,7 @@ bd_shots = [
     # 3) Criar tabela nutricional - Tudo correto
     {
         "human": """{
-            "routes":["dados"],
+            "route":"dados",
             "pergunta_original":"Preciso de uma tabela nutricional nova do produto Panelinha Seara de Carne, com 500g de Carne Desfiada, 100ml de leite e 14g de Sal. Com o nome de Receita nova premium",
             "persona":"{PERSONA_SISTEMA}
         }""",
@@ -379,7 +394,7 @@ bd_shots = [
     # 4) Atualizar tabela - Impossível
     {
         "human": """{
-            "routes":["dados"],
+            "route":"dados",
             "pergunta_original":"Coloque mais um ingrediente na tabela Receita nova premium do produto Panelinha Seara de Carne. Ingrediente novo: Salsinha 15g",
             "persona":"{PERSONA_SISTEMA}
         }""",
@@ -415,7 +430,7 @@ engenharia_system_prompt = ("system",
     - Hoje é {today_local} (America/Sao_Paulo). Interprete datas relativas a partir desta data.
     - Entrada vem do Roteador via JSON:
     {{
-    "routes":"engenharia",
+    "route":"engenharia",
     "pergunta_original": ... (use como diretriz de concisão/objetividade),
     "persona": ... (se preenchido, priorize responder esta dúvida antes de prosseguir)
     }}
@@ -434,17 +449,26 @@ engenharia_system_prompt = ("system",
     - Sua saída SEMPRE deverá ser no formato JSON descrito na seção 'SAÍDA (JSON)'
 
 
-    ### SAÍDA (JSON)
-        Campos mínimos para enviar para o orquestrador:
-        # Obrigatórios:
-        - dominio   : "engenharia"
-        - intencao  : "engenharia" | "legislacao" 
-        - resposta  : uma frase objetiva
-        - recomendacao : ação prática (pode ser string vazia se não houver)
-        # Opcionais (incluir só se necessário):
-        - acompanhamento : texto curto de follow-up/próximo passo
-        - esclarecer     : pergunta mínima de clarificação (usar OU 'acompanhamento')
-        - indicadores    : {{chaves livres e numéricas úteis ao log}}
+    ### REGRAS CRÍTICAS DE SAÍDA
+    - Sua **ÚNICA** e **EXCLUSIVA** saída DEVE ser um objeto JSON completo.
+    - É estritamente proibido incluir qualquer texto, introdução, comentário, saudação, markdown ou qualquer caractere (incluindo quebras de linha extras ou espaços) **ANTES OU DEPOIS** do bloco JSON.
+    - A resposta completa, didática e formatada em Markdown (como o texto que o modelo gerou, mas que causou o erro) deve estar contida como uma única string de valor na chave **"resposta"**.
+    - Utilize o {chat_history} e os dados fornecidos, mas a saída final é REGULADA APENAS por estas regras JSON.
+
+    ### FORMATO DE SAÍDA (JSON OBRIGATÓRIO)
+    // Sua resposta DEVE começar IMEDIATAMENTE com '{{' e terminar com '}}'.
+    // O analisador (parser) de JSON NÃO TOLERA NENHUM TEXTO OU CARACTERE ANTES OU DEPOIS.
+
+    {{
+        "dominio": "engenharia",
+        "intencao": "engenharia" | "legislacao",
+        "resposta": "A resposta completa e didática para o usuário, formatada em Markdown, incluindo todos os detalhes e o resumo lacônico. ESTA É A STRING QUE RECEBERÁ TODO O CONTEÚDO EXPLICATIVO.",
+        "recomendacao": "Ação prática ou dica de follow-up (String vazia se não houver)",
+        // Opcionais (inclua-os apenas se forem preenchidos e válidos):
+        // "acompanhamento": "texto curto de follow-up/próximo passo (usar OU 'esclarecer')",
+        // "esclarecer": "pergunta mínima de clarificação (usar OU 'acompanhamento')",
+        // "indicadores": {{}}
+    }}
 
 
     ### HISTÓRICO DA CONVERSA
@@ -461,7 +485,7 @@ engenharia_shots = [
     # 1) Pergunta sobre engenharia (básica)
     {
         "human": """{
-            "routes":["engenharia"],
+            "route":"engenharia",
             "pergunta_original":"Por que o controle de temperatura é um fator essencial na conservação dos alimentos?",
             "persona":"{PERSONA_SISTEMA}
         }""",
@@ -485,7 +509,7 @@ engenharia_shots = [
     # 2) Pergunta sobre engenharia (média)
     {
         "human": """{
-            "routes":["engenharia"],
+            "route":"engenharia",
             "pergunta_original":"Como o balanço de massa e energia é aplicado em um processo de evaporação de sucos?",
             "persona":"{PERSONA_SISTEMA}
         }""",
@@ -512,7 +536,7 @@ engenharia_shots = [
     # 3) Engenharia de alimentos (avançado)
     {
         "human": """{
-            "routes":["engenharia"],
+            "route":"engenharia",
             "pergunta_original":"Como o pH influencia o crescimento de microrganismos em alimentos?",
             "persona":"{PERSONA_SISTEMA}
         }""",
@@ -537,7 +561,7 @@ engenharia_shots = [
     # 4) Legislação de alimentos 1
     {
         "human": """{
-            "routes":["engenharia"],
+            "route":"engenharia",
             "pergunta_original":"Quais informações obrigatórias devem constar no rótulo de um alimento embalado?",
             "persona":"{PERSONA_SISTEMA}
         }""",
@@ -569,7 +593,7 @@ engenharia_shots = [
     # 5) Legislação de alimentos 2
     {
         "human": """{
-            "routes":["engenharia"],
+            "route":"engenharia",
             "pergunta_original":"Quais são as regras para o uso de alegações como “rico em fibras” ou “sem adição de açúcar”?",
             "persona":"{PERSONA_SISTEMA}
         }""",
@@ -613,7 +637,7 @@ app_system_prompt = ("system",
     ### CONTEXTO
     - Entrada vem do Roteador via JSON:
     {{
-    "routes":"app",
+    "route":"app",
     "pergunta_original": ... (use como diretriz de concisão/objetividade),
     "persona": ... (se preenchido, priorize responder esta dúvida antes de prosseguir)
     }}
@@ -629,6 +653,8 @@ app_system_prompt = ("system",
 
 
     ### SAÍDA (JSON)
+        Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta.
+        SEMPRE RETORNE NESSE FORMATO
         Campos mínimos para enviar para o orquestrador:
         # Obrigatórios:
         - dominio   : "app"
@@ -655,7 +681,7 @@ app_shots = [
     # 1) Fluxo
     {
         "human": """{
-            "routes":["app"],
+            "route":"app",
             "pergunta_original":"Como faço para alterar minha senha?",
             "persona":"{PERSONA_SISTEMA}
         }""",
@@ -672,7 +698,7 @@ app_shots = [
     # 2) App
     {
         "human": """{
-            "routes":["app"],
+            "route":"app",
             "pergunta_original":"O que é o Nutria?",
             "persona":"{PERSONA_SISTEMA}
         }""",
@@ -698,7 +724,7 @@ orquestrador_system_prompt = ("system",
 
 
     ### ENTRADA
-    - Lista de dicionarios ESPECIALISTA_JSON contendo chaves como:
+    - Uma lista de dicionarios ESPECIALISTA_JSON contendo chaves como:
     dominio, intencao, resposta, recomendacao (opcional), acompanhamento (opcional),
     esclarecer (opcional), janela_tempo (opcional), evento (opcional), escrita (opcional), indicadores (opcional).
 
@@ -709,10 +735,23 @@ orquestrador_system_prompt = ("system",
     - Use a recomendação do último especialista que foi chamado
 
 
+    ### SAÍDA (JSON)
+        Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta.
+        SEMPRE RETORNE NESSE FORMATO
+        Campos para enviar
+        # Obrigatórios:
+        - route : "engenharia" | "app" | "dados" | "analise_completa" |"small_talk" (Rota que seguiu para chegar até aqui)
+        - resposta_final : Apenas a união das respostas obtidas
+        
+
     ### HISTÓRICO DA CONVERSA
     {chat_history}
 """
 )
+
+class OrquestradorResposta(BaseModel):
+    route: str = Field(..., description="engenharia | app | dados | analise_completa |small_talk (Rota que seguiu para chegar até aqui)")
+    resposta_final: str = Field(..., description="União das respostas obtidas")
 
 orquestrador_shots = [
     # 1) Banco e engenharia
@@ -769,13 +808,27 @@ juiz_system_prompt = ("system",
 
     
     ### SAÍDA
-    Você deve avaliar a resposta e verificar se precisa de modificação, caso não precise de modificação retorne apenas a resposta original, caso precise, modifique a resposta e retorne a resposta modificada/ajustada
+    Você deve avaliar a resposta e verificar se precisa de modificação, caso não precise de modificação retorne apenas a 
+    resposta original, caso precise, modifique a resposta e retorne a resposta modificada/ajustada
+
+
+    ### FORMATO SAÍDA (JSON)
+        Considere apenas isso como formato de saída, não considere seu histórico para gerar um formato de resposta.
+        SEMPRE RETORNE NESSE FORMATO
+        Campos para enviar
+        # Obrigatórios:
+        - valido : (true|false)
+        - resposta_ajustada : (OPCIONAL) Reposta ajustada para quando a resposta original não estiver válida
 
     
     ### HISTÓRICO DE CONVERSA
     {chat_history}
 """
 )
+
+class JuizResposta(BaseModel):
+    valido: bool = Field(..., description="(true|false)")
+    resposta_ajustada: Optional[str] = Field(default=None, description="(OPCIONAL) Reposta ajustada para quando a resposta original não estiver válida")
 
 juiz_shots = [
     # 1) Resposta válida
@@ -795,11 +848,7 @@ juiz_shots = [
             Controlar a temperatura é como colocar o alimento no modo “pause” da vida — ele não estraga, mantém sabor e textura, e continua seguro pra consumo! 😋"
         }
             """,
-        "ai":"""
-        {
-            "valido": True
-        }
-            """
+        "ai":"""{"valido": true}"""
     },
     # 2) Resposta inválida
     {
@@ -809,12 +858,7 @@ juiz_shots = [
             "resposta_especialista":"Eu acho que leite humano combina"
         }
         """,
-        "ai":"""
-        {
-            "valido": False,
-            "resposta_ajustada": "A carne de porco é comumente utilizada junta dos vários tipos de feijão e arroz, como em feijoada, virada paulista ou baião de dois"
-        }
-        """
+        "ai":"""{"valido": false,"resposta_ajustada": "A carne de porco é comumente utilizada junta dos vários tipos de feijão e arroz, como em feijoada, virada paulista ou baião de dois"}"""
     }
 ]
 
@@ -849,6 +893,7 @@ prompts = {
         engenharia_fewshots,
         MessagesPlaceholder("chat_history"),
         ("human", "{input}"),
+        MessagesPlaceholder("agent_scratchpad") # llm fazendo um bloco de anotações, dando total liberdade para o agente mudar o promptm, para implementação de tools
     ]).partial(today_local = today_local),
     "app": ChatPromptTemplate.from_messages([
         app_system_prompt,
@@ -864,8 +909,8 @@ prompts = {
         ("human", "{input}"),
     ]).partial(today_local = today_local),
     "juiz": ChatPromptTemplate.from_messages([
-        orquestrador_system_prompt,
-        orquestrador_fewshots,
+        juiz_system_prompt,
+        juiz_few_shots,
         MessagesPlaceholder("chat_history"),
         ("human", "{input}"),
     ]),
@@ -878,11 +923,15 @@ def criar_guardrail():
     guardrail_pipeline = (
         prompts["guardrail"]
         | llm
-        | JsonOutputParser()
+        | PydanticOutputParser(pydantic_object=GuardRailResposta)
     )
 
+    # 2. ENCADEIA a função lambda para converter o objeto Pydantic em uma STRING JSON
+    # Isso é feito com o operador | (pipe)
+    guardrail_json_string = guardrail_pipeline | (lambda x: x.model_dump_json())
+
     return RunnableWithMessageHistory( 
-        guardrail_pipeline, # Usa o Runnable que retorna a string JSON 
+        guardrail_json_string, # Usa o Runnable que retorna a string JSON 
         get_session_history=get_session_history, 
         history_messages_key="chat_history", 
         input_messages_key="input", 
@@ -930,11 +979,25 @@ def criar_bd_agent():
     return bd_executor
 
 def criar_engenharia_agent():
-    return RunnableWithMessageHistory(
-        prompts["engenharia"] | llm | JsonOutputParser(),
+    engenharia_agent = create_tool_calling_agent(
+        llm=llm,
+        tools=[],
+        prompt=prompts["engenharia"]
+    )
+    engenharia_executor_base = AgentExecutor(
+        agent=engenharia_agent,
+        tools=[],
+        verbose=False,
+        handle_parsing_errors=False,
+        return_intermediate_steps=False
+    )
+    engenharia_executor = RunnableWithMessageHistory(
+        engenharia_executor_base,
         get_session_history=get_session_history,
-        history_messages_key="chat_history",
-        input_messages_key="input", handle_parsing_errors=False)
+        input_messages_key='input',
+        history_messages_key='chat_history'
+    )
+    return engenharia_executor
 
 def criar_app_agent():
     app_agent = create_tool_calling_agent(
@@ -959,26 +1022,40 @@ def criar_app_agent():
     return app_executor
 
 def criar_orquestrador():
-    return RunnableWithMessageHistory(
-        prompts["orquestrador"] | llm_fast | StrOutputParser(), 
-        get_session_history=get_session_history,
-        input_messages_key="input",
-        history_messages_key="chat_history", handle_parsing_errors=False)
-
-def criar_juiz():
-    # 1. Cria a pipeline do roteador que retorna o OBJETO Pydantic (um RunnableSequence)
-    juiz_pipeline = (
-        prompts["juiz"] 
-        | llm 
-        | StrOutputParser()
+    orquestrador_pipeline = (
+        prompts["orquestrador"]
+        | llm_fast
+        | PydanticOutputParser(pydantic_object=OrquestradorResposta)
     )
 
-    # 3. Encapsula o novo runnable com o histórico
-    return RunnableWithMessageHistory(
-        juiz_pipeline, # Usa o Runnable que retorna a string JSON
-        get_session_history=get_session_history,
-        history_messages_key="chat_history",
-        input_messages_key="input", handle_parsing_errors=False)
+    # 2. ENCADEIA a função lambda para converter o objeto Pydantic em uma STRING JSON
+    # Isso é feito com o operador | (pipe)
+    orquestrador_json_string = orquestrador_pipeline | (lambda x: x.model_dump_json())
+
+    return RunnableWithMessageHistory( 
+        orquestrador_json_string, # Usa o Runnable que retorna a string JSON 
+        get_session_history=get_session_history, 
+        history_messages_key="chat_history", 
+        input_messages_key="input", 
+        handle_parsing_errors=False)
+
+def criar_juiz():
+    juiz_pipeline = (
+        prompts["juiz"]
+        | llm
+        | PydanticOutputParser(pydantic_object=JuizResposta)
+    )
+
+    # 2. ENCADEIA a função lambda para converter o objeto Pydantic em uma STRING JSON
+    # Isso é feito com o operador | (pipe)
+    juiz_json_string = juiz_pipeline | (lambda x: x.model_dump_json())
+
+    return RunnableWithMessageHistory( 
+        juiz_json_string, # Usa o Runnable que retorna a string JSON 
+        get_session_history=get_session_history, 
+        history_messages_key="chat_history", 
+        input_messages_key="input", 
+        handle_parsing_errors=False)
 
 def criar_especialista(especialista:str):
     if especialista == "dados":
@@ -988,30 +1065,54 @@ def criar_especialista(especialista:str):
     else:
         return criar_engenharia_agent()
 
+def fluxo_analise_completa(usuario, nCdUsuario):
+    analise_completa = []
+    bd = criar_bd_agent()
+
+    resposta_bd = bd.invoke(
+        {"input":usuario},
+        config={"configurable":{"session_id":nCdUsuario}} 
+    )["output"]
+
+    analise_completa.append(resposta_bd)
+
+    engenharia = criar_engenharia_agent()
+
+    entrada_engenharia = usuario + f"\n Resposta Banco de dados: {resposta_bd}"
+    resposta_engenharia = engenharia.invoke(
+        {"input":entrada_engenharia},
+        config={"configurable":{"session_id":nCdUsuario}} 
+    )["output"]
+
+    analise_completa.append(resposta_engenharia)
+
+    return analise_completa
+
 
 def processa_pergunta(pergunta_usuario, cod_usuario):
     # Aplicando o guardrail para a IA
     guardrail = criar_guardrail()
 
-    resposta_guardrail = GuardRailResposta(**(
-        guardrail.invoke(
+    resposta_guardrail_json = guardrail.invoke(
         {"input":pergunta_usuario}, 
         config={"configurable": {"session_id": cod_usuario}}
-        ))
     )
+    
+    resposta_guardrail = GuardRailResposta.model_validate_json(resposta_guardrail_json)
 
     if (not resposta_guardrail.legal):
         # Salvando a memória do chat no MongoDB
         set_history(cod_usuario, store[cod_usuario])
         return resposta_guardrail.resposta
 
-
     # Criando o agente roteador que irá dizer qual fluxo a conversa deverá seguir
     roteador = criar_roteador()
 
+    guardrail_saida_json = str(resposta_guardrail.model_dump_json())
+
     # Obtendo a resposta do roteador
     resposta_roteador_json = roteador.invoke(
-        {"input":pergunta_usuario}, 
+        {"input":guardrail_saida_json}, 
         config={"configurable": {"session_id": cod_usuario}}
     )
 
@@ -1019,10 +1120,10 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
     resposta_roteador = RoteadorResposta.model_validate_json(resposta_roteador_json)
 
     # Adquirindo todas as rotas que o roteador quer que siga
-    rotas = resposta_roteador.routes
+    rota = resposta_roteador.route
     
     # Caso seja small_talk, vai retornar somente a resposta small_talk sem nem criar os outros agentes
-    if "small_talk" in rotas:
+    if "small_talk" == rota:
         # Salvando a memória do chat no MongoDB
         set_history(cod_usuario, store[cod_usuario])
         return resposta_roteador.resposta_small_talk
@@ -1032,7 +1133,9 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
 
     entrada_json = str(resposta_roteador.model_dump_json())
     
-    for rota in rotas:
+    if rota == "analise_completa":
+        respostas_especialistas = fluxo_analise_completa(entrada_json, cod_usuario)
+    else:
         especialista = criar_especialista(rota)
 
         resposta_especialista = especialista.invoke(
@@ -1040,22 +1143,29 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
             config={"configurable":{"session_id":cod_usuario}}
         )
 
-        respostas_especialistas.append(resposta_especialista["output"])
+        if "output" in resposta_especialista:
+            respostas_especialistas.append(resposta_especialista["output"])
+        else:
+            respostas_especialistas.append(resposta_especialista)
 
     # Criando o orquestrador para gerar a resposta final
     orquestrador = criar_orquestrador()
 
     # Gerando a resposta final com todas as respostas dos especialistas e retornando
-    resposta_final = orquestrador.invoke(
+    resposta_final_json = orquestrador.invoke(
         {"input":respostas_especialistas},
         config={"configurable":{"session_id":cod_usuario}}
     )
 
+    resposta_final = OrquestradorResposta.model_validate_json(resposta_final_json)
+
     # Realizando verificação com juiz
     juiz_entrada = {
         "pergunta_original": pergunta_usuario,
-        "resposta_especialista": resposta_final
+        "resposta_especialista": resposta_final.resposta_final
     }
+
+    juiz_entrada = json.dumps(juiz_entrada) # Transformando em um JSON string
 
     juiz = criar_juiz()
 
@@ -1064,8 +1174,12 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
         config={"configurable": {"session_id": cod_usuario}}
     )
 
-    resposta_final = resposta_juiz_json
-   
+    resposta_juiz = JuizResposta.model_validate_json(resposta_juiz_json)
+
+    if (not resposta_juiz.valido):
+        resposta_final = resposta_juiz.resposta_ajustada
+    else:
+        resposta_final = resposta_final.resposta_final
 
     # Salvando a memória do chat no MongoDB
     set_history(cod_usuario, store[cod_usuario])
