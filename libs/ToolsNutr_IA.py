@@ -81,7 +81,7 @@ def set_history(nCdUsuario:int, history:ChatMessageHistory, iChat:int=1 ):
                 lUser.append(conteudo)
         elif (memo["type"] == "ai"):
             # Regra para evitar as memórias das conversas entre os agentes
-            if (not "\"dominio\":" in conteudo and (not "\"resposta_small_talk\":null" in conteudo) and (not conteudo.startswith("{\"legal\":")) and (not "\"route\":" in conteudo)):
+            if (not "\"dominio\":" in conteudo and (not "\"resposta_small_talk\":null" in conteudo) and (not conteudo.startswith("{\"legal\":")) and (not "\"resposta_final\":" in conteudo)):
                 # Verificando se é small talk ou orquestrador
                 if ("\"resposta_small_talk\":" in conteudo):
                     resposta_json = json.loads(conteudo)
