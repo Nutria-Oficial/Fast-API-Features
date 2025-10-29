@@ -1161,7 +1161,6 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
     if (not resposta_guardrail.legal):
         # Salvando a memória do chat no MongoDB
         set_history(cod_usuario, store[cod_usuario])
-        store = {}
         return resposta_guardrail.resposta
 
     # Criando o agente roteador que irá dizer qual fluxo a conversa deverá seguir
@@ -1185,7 +1184,6 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
     if "small_talk" == rota:
         # Salvando a memória do chat no MongoDB
         set_history(cod_usuario, store[cod_usuario])
-        store = {}
         return resposta_roteador.resposta_small_talk
     
     # Pegando as respostas dos especialistas
@@ -1238,14 +1236,15 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
 
     # Salvando a memória do chat no MongoDB
     set_history(cod_usuario, store[cod_usuario])
-    store = {}
 
     return resposta_final
 
 
 def Tria(pergunta_usuario, cod_usuario):
     try:
-        return processa_pergunta(pergunta_usuario, cod_usuario)
+        resposta = processa_pergunta(pergunta_usuario, cod_usuario)
+        store.clear()
+        return resposta
     except Exception as e:
         print("Ocorreu um erro ao consumir a API: ", e)
 
