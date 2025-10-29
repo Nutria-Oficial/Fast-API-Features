@@ -369,7 +369,59 @@ bd_shots = [
             "recomendacao":"Gostaria de saber como utilizar esse ingrediente de forma saudável e harmonizada? :)",
         }"""
     },
-    # 2) Criar tabela nutricional - Faltando nome
+    # 2) Consulta em ingredientes 2
+    {
+        "human": """{
+            "route":"dados",
+            "pergunta_original":"Me mostre os ingredientes carne",
+            "persona":"{PERSONA_SISTEMA}
+        }""",
+        "ai": """{
+            "dominio":"dados",
+            "intencao":"consultar",
+            "resposta":"Encontrei os seguintes ingredientes relacionados a 'carne':
+            *   **Carne, chão:**
+                *   Calorias: 261 kcal (a cada 100g)
+                *   Proteínas: 25.55g
+                *   Gordura Total: 16.82g
+                *   Carboidratos: 0g
+            *   **Carne, NFS:**
+                *   Calorias: 215 kcal (a cada 100g)
+                *   Proteínas: 27.13g
+                *   Gordura Total: 11.29g
+                *   Carboidratos: 0g
+            *   **Carne, NFS (outra entrada com valores ligeiramente diferentes):**
+                *   Calorias: 231 kcal (a cada 100g)
+                *   Proteínas: 27.13g
+                *   Gordura Total: 13.04g
+                *   Carboidratos: 0g
+            Qual desses você gostaria de analisar com mais detalhes ou usar para uma nova tabela nutricional? 😊 Que tal compararmos as informações nutricionais desses tipos de carne para entender qual se encaixa melhor nas suas necessidades?",
+            "recomendacao":"Gostaria de saber como utilizar esse ingrediente de forma saudável e harmonizada? :)",
+        }"""
+    },
+    # 3) Consulta em produtos
+    {
+        "human": """{
+            "route":"dados",
+            "pergunta_original":"Me mostre os produtos cadastrados",
+            "persona":"{PERSONA_SISTEMA}
+        }""",
+        "ai": """{
+            "dominio":"dados",
+            "intencao":"consultar",
+            "resposta":"Aqui estão os produtos que encontrei cadastrados:
+            
+            *   Bolo de cenoura
+            *   Leite
+            *   Leite Integral
+            *   Iogurte Integral
+            *   Iogurte Integral
+            
+            Gostaria de criar uma nova tabela nutricional para algum desses produtos ou buscar informações sobre um ingrediente específico?",
+            "recomendacao":"Gostaria de saber como utilizar esse ingrediente de forma saudável e harmonizada? :)",
+        }"""
+    },
+    # 4) Criar tabela nutricional - Faltando nome
     {
         "human": """{
             "route":"dados",
@@ -384,7 +436,7 @@ bd_shots = [
             "esclarecer":"Nome da tabela para que insira de forma personalizada."
         }"""
     },
-    # 3) Criar tabela nutricional - Tudo correto
+    # 5) Criar tabela nutricional - Tudo correto
     {
         "human": """{
             "route":"dados",
@@ -398,7 +450,7 @@ bd_shots = [
             "recomendacao":"Você pode comparar essa tabela com outras dentro do seu produto além de verificar a avaliação gerada dela.",
         }"""
     },
-    # 4) Atualizar tabela - Impossível
+    # 6) Atualizar tabela - Impossível
     {
         "human": """{
             "route":"dados",
@@ -1109,6 +1161,7 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
     if (not resposta_guardrail.legal):
         # Salvando a memória do chat no MongoDB
         set_history(cod_usuario, store[cod_usuario])
+        store = {}
         return resposta_guardrail.resposta
 
     # Criando o agente roteador que irá dizer qual fluxo a conversa deverá seguir
@@ -1132,6 +1185,7 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
     if "small_talk" == rota:
         # Salvando a memória do chat no MongoDB
         set_history(cod_usuario, store[cod_usuario])
+        store = {}
         return resposta_roteador.resposta_small_talk
     
     # Pegando as respostas dos especialistas
@@ -1184,6 +1238,7 @@ def processa_pergunta(pergunta_usuario, cod_usuario):
 
     # Salvando a memória do chat no MongoDB
     set_history(cod_usuario, store[cod_usuario])
+    store = {}
 
     return resposta_final
 
