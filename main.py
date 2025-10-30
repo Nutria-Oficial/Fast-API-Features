@@ -14,9 +14,9 @@ api = FastAPI()
 # Defina as origens permitidas
 origins = [
     "http://localhost",
-    "http://localhost:5173",  # Adicione o seu frontend local
-    # Se você tiver um domínio de produção, adicione-o aqui também
-    # "https://seudominiofrontend.com"
+    "http://localhost:5173",  
+    "https://area-restrita-krae.onrender.com",
+    # Pode adicionar outras origens se necessário
 ]
 
 api.add_middleware(
