@@ -17,7 +17,7 @@ from libs.Utils.Connection import get_coll, COLLS,get_highest_id
 
 # Configure sua chave da API
 # Configuração básica do Gemini
-# load_dotenv()
+load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=api_key)
 
@@ -43,6 +43,7 @@ def processar_imagem(imagem, nome_ingrediente):
     """
 
     # Gere a resposta
+    genai.configure(api_key=api_key)
     response = model.generate_content([prompt, imagem])
     ingrediente = response.text    
 
