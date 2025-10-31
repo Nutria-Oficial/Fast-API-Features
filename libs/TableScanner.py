@@ -11,6 +11,7 @@ import os
 import google.generativeai as genai
 from pathlib import Path
 from PIL import Image
+from dotenv import load_dotenv
 from libs.Utils.Connection import get_coll, COLLS,get_highest_id
 # from dotenv import load_dotenv
 
