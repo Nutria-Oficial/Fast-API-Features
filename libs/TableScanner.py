@@ -35,10 +35,21 @@ def processar_imagem(imagem, nome_ingrediente):
 
     # Prompt para extrair e converter a imagem em CSV
     prompt = f"""
+    ### FUNÇÃO
     Esta imagem contém uma tabela nutricional. Por favor, leia o conteúdo da imagem,
     identifique os dados estruturados (como nutrientes, quantidades em 100g, unidade de medida).
     E retorne os dados encontrados estruturados no seguinte formato:
     {modelo_ingrediente}
+    
+    
+    ### REGRAS
+    - Retorne os dados estritamente no formato JSON conforme o modelo fornecido.
+    - Se algum campo estiver ausente na imagem, utilize null como valor.
+    - SEMPRE retorne apenas o JSON, sem explicações adicionais.
+    - Retorne SEMPRE no formato indicado
+    - Caso não possua um determinado nutriente, utilize como 0 (zero) no campo correspondente.
+    - Nos campos de nutrientes, SEMPRE retorne números, sem unidades de medida ou textos adicionais.
+    
 
     Retorne apenas o que encontrou sem nenhum tipo de comentário extra
 
