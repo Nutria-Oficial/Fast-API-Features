@@ -60,3 +60,5 @@ def processar_imagem(imagem, nome_ingrediente):
     ingrediente["cNmIngrediente"]= nome_ingrediente
 
     cursor.insert_one(ingrediente)
+
+    return ingrediente["_id"]

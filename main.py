@@ -74,9 +74,9 @@ async def scanner_tabela(nome_ingrediente:str, file: UploadFile = File(...)):
         # Converte os bytes em uma imagem PIL
         image = Image.open(io.BytesIO(contents))
         
-        processar_imagem(image, nome_ingrediente)
+        id_novo = processar_imagem(image, nome_ingrediente)
        
         # Envia a imagem como resposta HTTP
-        return JSONResponse(content={"message":f"O ingrediente {nome_ingrediente} foi scanneado e salvo com sucesso"}, status_code=200)
+        return JSONResponse(content={"message":f"O ingrediente {nome_ingrediente} foi scanneado e salvo com sucesso", "id_novo":id_novo}, status_code=200)
     except Exception as e:
         return JSONResponse(content={"message":e}, status_code=500)
