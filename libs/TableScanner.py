@@ -19,7 +19,7 @@ from libs.Utils.Connection import get_coll, COLLS,get_highest_id
 # Configure sua chave da API
 # Configuração básica do Gemini
 load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY")
+api_key = os.getenv("GOOGLE_GEMINI_API")
 genai.configure(api_key=api_key)
 
 # Inicialize o modelo Gemini Pro Vision
