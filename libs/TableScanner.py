@@ -13,13 +13,14 @@ from pathlib import Path
 from PIL import Image
 from dotenv import load_dotenv
 from libs.Utils.Connection import get_coll, COLLS,get_highest_id
+import json
 # from dotenv import load_dotenv
 
 
 # Configure sua chave da API
 # Configuração básica do Gemini
 load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY")
+api_key = os.getenv("GOOGLE_GEMINI_API")
 genai.configure(api_key=api_key)
 
 # Inicialize o modelo Gemini Pro Vision
@@ -49,11 +50,8 @@ def processar_imagem(imagem, nome_ingrediente):
     ingrediente = response.text    
 
     ingrediente = ingrediente.removeprefix("```json\n").removesuffix("```")
-
-    if (ingrediente.startswith("[")):
-        ingrediente = dict(list(ingrediente)[0])
-    else:
-        ingrediente = dict(ingrediente)
+    
+    ingrediente = list(json.loads(ingrediente))[0]
 
     # Realizando as modificações necessárias e inserindo no banco
     cursor = get_coll(COLLS["ingrediente"])
