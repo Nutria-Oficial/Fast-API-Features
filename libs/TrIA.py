@@ -15,7 +15,7 @@ from typing import Optional # padrao do python
 import os
 import json
 from dotenv import load_dotenv
-from libs.ToolsNutr_IA import TOOLS_BD, TOOLS_RAG, get_history, set_history, get_datetime
+from libs.ToolsNutr_IA import TOOLS_BD, TOOLS_RAG, get_history, set_history, get_datetime, get_api_key
 
 today_local = get_datetime()
 
@@ -31,7 +31,7 @@ def get_session_history(session_id) -> ChatMessageHistory:
 # LLMs ----------------------------------------------------
 load_dotenv() # Pegando as variáveis seguras
 
-api_key = os.getenv("GOOGLE_GEMINI_API")
+api_key = get_api_key()
  
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",

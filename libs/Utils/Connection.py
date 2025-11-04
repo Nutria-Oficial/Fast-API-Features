@@ -22,7 +22,8 @@ COLLS = {
     "memoria":"chat",
     "tabela_nutricional":"tabela",
     "ingrediente":"ingrediente",
-    "produto":"produto"
+    "produto":"produto",
+    "api":"api"
 }
 
 # Funções de conexão basica com MongoDB ------------------------
@@ -46,7 +47,22 @@ def get_highest_id(cursor):
     else:
         return 1
 
+def get_api_key():
+    cursor = get_coll(COLLS["api"])
+
+    agg = [{"$sort":{"iUsos":-1}},
+        {"$limit":1},
+        {"$project":{"cChave":1}}]
     
+    result = cursor.aggregate(agg).to_list()
+
+    if (len(result)>0):
+        api = result[0]["cChave"]
+        cursor.update_one({"_id":result[0]["_id"]}, {"$inc":{"iUsos":1}})
+    else:
+        api = os.getenv("GOOGLE_GEMINI_API")
+    
+    return api    
 
 # Redis Connection
 def get_redis():
