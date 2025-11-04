@@ -1,0 +1,13 @@
+[
+{
+    "_id":"Id único do chat para o mongo",
+    "cChave":"Chave da API do Gemini",
+    "iUsos":"Quantidade de vezes que a chave foi usada"
+},
+
+{
+    "_id":1,
+    "cChave":"API-OJNASDOJMASDOKMAS",
+    "iUsos":0
+}
+]
