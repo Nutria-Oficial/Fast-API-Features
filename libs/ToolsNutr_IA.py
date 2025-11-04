@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain.schema import HumanMessage
 from libs.Utils.Exception import Http_Exception
-from libs.Utils.Connection import get_coll, COLLS, get_highest_id
+from libs.Utils.Connection import get_coll, COLLS, get_highest_id, get_api_key
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
