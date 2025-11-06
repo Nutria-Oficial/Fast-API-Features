@@ -50,7 +50,7 @@ def get_highest_id(cursor):
 def get_api_key():
     cursor = get_coll(COLLS["api"])
 
-    agg = [{"$sort":{"iUsos":-1}},
+    agg = [{"$sort":{"iUsos":1}},
         {"$limit":1},
         {"$project":{"cChave":1}}]
     
